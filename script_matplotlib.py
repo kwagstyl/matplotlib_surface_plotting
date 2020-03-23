@@ -1,7 +1,6 @@
 from matplotlib_surface_plotting import plot_surf
 import nibabel as nb
 import numpy as np
-
 vertices, faces=nb.freesurfer.io.read_geometry('lh.inflated')
 overlay = nb.freesurfer.io.read_morph_data('lh.thickness')
 

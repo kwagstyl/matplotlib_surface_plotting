@@ -68,7 +68,7 @@ def plot_surf(vertices, faces,overlay,rotate=270, cmap='viridis', filename='plot
         T, s_C = T[I,:], C[I,:]
         ax = fig.add_subplot(1,len(rotate),i+1, xlim=[-1,+1], ylim=[-1,+1],aspect=1, frameon=False,
          xticks=[], yticks=[])
-        collection = PolyCollection(T, closed=True, linewidth=0.1, facecolor=s_C, edgecolor=s_C)
+        collection = PolyCollection(T, closed=True, linewidth=0,antialiased=False, facecolor=s_C, edgecolor=s_C)
         collection.set_alpha(1)
         ax.add_collection(collection)
         plt.subplots_adjust(left =0 , right =1, top=1, bottom=0,wspace=0, hspace=0)
