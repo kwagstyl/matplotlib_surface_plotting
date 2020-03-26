@@ -69,7 +69,8 @@ def shading_intensity(vertices,faces, light = np.array([0,0,1]),shading=0.7):
     return intensity
 
 
-def plot_surf(vertices, faces,overlay,rotate=270, cmap='viridis', filename='plot.png', label=False):
+def plot_surf(vertices, faces,overlay,rotate=270, cmap='viridis', filename='plot.png', label=False,
+             vmax=None, vmin=None):
     """plot mesh surface with a given overlay
     vertices - vertex locations
     faces - triangles of vertex indices definings faces
@@ -97,7 +98,11 @@ def plot_surf(vertices, faces,overlay,rotate=270, cmap='viridis', filename='plot
             colours = np.median(overlay[F],axis=1)
         else:
             colours = np.mean(overlay[F],axis=1)
-        colours = (colours - colours.min())/(colours.max()-colours.min())
+        if vmax is not None:
+            colours = (colours - vmin)/(vmax-vmin)
+            colours = np.clip(colours,0,1)
+        else:
+            colours = (colours - colours.min())/(colours.max()-colours.min())
         C = plt.get_cmap(cmap)(colours) 
         C[:,0] *= intensity
         C[:,1] *= intensity
