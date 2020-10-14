@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.collections import PolyCollection
+from matplotlib import cm
 
 def normalize_v3(arr):
     ''' Normalize a numpy array of 3 component vectors shape=(n,3) '''
@@ -61,6 +62,7 @@ def shading_intensity(vertices,faces, light = np.array([0,0,1]),shading=0.7):
        Also saturates so top 20 % of vertices all have max intensity."""
     face_normals=normal_vectors(vertices,faces)
     intensity = np.dot(face_normals, light)
+    intensity[np.isnan(intensity)]=1
     shading = 0.7    
     #top 20% all become fully coloured
     intensity = (1-shading)+shading*(intensity-np.min(intensity))/((np.percentile(intensity,80)-np.min(intensity)))
@@ -68,9 +70,83 @@ def shading_intensity(vertices,faces, light = np.array([0,0,1]),shading=0.7):
     intensity[intensity>1]=1
     return intensity
 
+def f7(seq):
+    #returns uniques but in order to retain neighbour triangle relationship
+    seen = set()
+    seen_add = seen.add
+    return [x for x in seq if not (x in seen or seen_add(x))];
+
+
+def get_ring_of_neighbours(island, neighbours, vertex_indices=None, ordered=False):
+    """Calculate ring of neighbouring vertices for an island of cortex
+    If ordered, then vertices will be returned in connected order"""
+    if not vertex_indices:
+        vertex_indices=np.arange(len(island))
+    if not ordered:
+
+        neighbours_island = neighbours[island]
+        unfiltered_neighbours = []
+        for n in neighbours_island:
+            unfiltered_neighbours.extend(n)
+        unique_neighbours = np.setdiff1d(np.unique(unfiltered_neighbours), vertex_indices[island])
+        return unique_neighbours
+
+def get_neighbours_from_tris(tris, label=None):
+    """Get surface neighbours from tris
+        Input: tris
+         Returns Nested list. Each list corresponds 
+        to the ordered neighbours for the given vertex"""
+    n_vert=np.max(tris+1)
+    neighbours=[[] for i in range(n_vert)]
+    for tri in tris:
+        neighbours[tri[0]].extend([tri[1],tri[2]])
+        neighbours[tri[2]].extend([tri[0],tri[1]])
+        neighbours[tri[1]].extend([tri[2],tri[0]])
+    #Get unique neighbours
+    for k in range(len(neighbours)):      
+        if label is not None:
+            neighbours[k] = set(neighbours[k]).intersection(label)
+        else :
+            neighbours[k]=f7(neighbours[k])
+    return np.array(neighbours)
+
+def adjust_colours_pvals(colours, pvals,triangles,mask=None):
+    """red ring around clusters and greying out non-significant vertices"""
+    if mask is not None:
+        verts_masked = mask[triangles].any(axis=1)
+        colours[verts_masked,:] = np.array([0.86,0.86,0.86,1])
+    neighbours=get_neighbours_from_tris(triangles)
+    ring=get_ring_of_neighbours(pvals<0.05,neighbours)
+    if len(ring)>0:
+        ring_label = np.zeros(len(neighbours)).astype(bool)
+        ring_label[ring]=1
+        ring=get_ring_of_neighbours(ring_label,neighbours)
+        ring_label[ring]=1
+        colours[ring_label[triangles].any(axis=1),:] = np.array([1.0,0,0,1])
+    grey_out=pvals<0.05
+    verts_grey_out= grey_out[triangles].any(axis=1)
+    colours[verts_grey_out,:] = (1.5*colours[verts_grey_out] + np.array([0.86,0.86,0.86,1]))/2.5
+    return colours
+
+def frontback(T):
+    """
+    Sort front and back facing triangles
+    Parameters:
+    -----------
+    T : (n,3) array
+       Triangles to sort
+    Returns:
+    --------
+    front and back facing triangles as (n1,3) and (n2,3) arrays (n1+n2=n)
+    """
+    Z = (T[:,1,0]-T[:,0,0])*(T[:,1,1]+T[:,0,1]) + \
+        (T[:,2,0]-T[:,1,0])*(T[:,2,1]+T[:,1,1]) + \
+        (T[:,0,0]-T[:,2,0])*(T[:,0,1]+T[:,2,1])
+    return Z < 0, Z >= 0
+
 
 def plot_surf(vertices, faces,overlay,rotate=270, cmap='viridis', filename='plot.png', label=False,
-             vmax=None, vmin=None):
+             vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, title=None, mask=None, base_size=6):
     """plot mesh surface with a given overlay
     vertices - vertex locations
     faces - triangles of vertex indices definings faces
@@ -89,7 +165,10 @@ def plot_surf(vertices, faces,overlay,rotate=270, cmap='viridis', filename='plot
         overlays=overlay
     intensity=shading_intensity(vertices, F, light=np.array([0,0,1]),shading=0.7)
      #make figure dependent on rotations
-    fig = plt.figure(figsize=(6*len(rotate),6*len(overlays)))
+    
+    fig = plt.figure(figsize=(base_size*len(rotate)+colorbar*(base_size-2),(base_size-1)*len(overlays)))
+    if title is not None:
+        plt.title(title, fontsize=25)
     plt.axis('off')
     print('plotting')
     for k,overlay in enumerate(overlays):
@@ -103,12 +182,16 @@ def plot_surf(vertices, faces,overlay,rotate=270, cmap='viridis', filename='plot
             colours = np.clip(colours,0,1)
         else:
             colours = (colours - colours.min())/(colours.max()-colours.min())
+            vmax = colours.max()
+            vmin = colours.min()
         C = plt.get_cmap(cmap)(colours) 
+        if pvals is not None:
+            C = adjust_colours_pvals(C,pvals,F,mask)
         C[:,0] *= intensity
         C[:,1] *= intensity
         C[:,2] *= intensity
         for i,view in enumerate(rotate):
-            MVP = perspective(25,1,1,100) @ translate(0,0,-3) @ yrotate(view) @ xrotate(270)
+            MVP = perspective(25,1,1,100) @ translate(0,0,-3) @ yrotate(view) @ xrotate(x_rotate)
         #translate coordinates based on viewing position
             V = np.c_[vertices, np.ones(len(vertices))]  @ MVP.T
             V /= V[:,3].reshape(-1,1)
@@ -118,12 +201,22 @@ def plot_surf(vertices, faces,overlay,rotate=270, cmap='viridis', filename='plot
         #get Z values for ordering triangle plotting
             Z = -V[:,:,2].mean(axis=1)
         #sort the triangles based on their z coordinate. If front/back views then need to sort a different axis
+#sort the triangles based on their z coordinate. If front/back views then need to sort a different axis
+            front, back = frontback(T)
+            T=T[front]
+            s_C = C[front]
+            Z = Z[front]
             I = np.argsort(Z)
-            T, s_C = T[I,:], C[I,:]
-            ax = fig.add_subplot(len(overlays),len(rotate),2*k+i+1, xlim=[-1,+1], ylim=[-1,+1],aspect=1, frameon=False,
+            T, s_C = T[I,:], s_C[I,:]
+            ax = fig.add_subplot(len(overlays),len(rotate)+1,2*k+i+1, xlim=[-.9,+.9], ylim=[-.9,+.9],aspect=1, frameon=False,
              xticks=[], yticks=[])
             collection = PolyCollection(T, closed=True, linewidth=0,antialiased=False, facecolor=s_C)
             collection.set_alpha(1)
             ax.add_collection(collection)
             plt.subplots_adjust(left =0 , right =1, top=1, bottom=0,wspace=0, hspace=0)
-    fig.savefig(filename,bbox_inches = 'tight',)
+    if colorbar:
+        cbar = fig.colorbar(cm.ScalarMappable( cmap=cmap), ticks=[0,0.5, 1],cax = fig.add_axes([0.7, 0.3, 0.03, 0.38]))
+        cbar.ax.set_yticklabels([np.round(vmin,decimals=2), np.round(np.mean([vmin,vmax]),decimals=2),
+                         np.round(vmax,decimals=2)])
+        cbar.ax.tick_params(labelsize=25)
+    fig.savefig(filename,bbox_inches = 'tight',pad_inches=0,transparent=True)
