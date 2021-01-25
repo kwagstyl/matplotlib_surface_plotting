@@ -170,7 +170,6 @@ def plot_surf(vertices, faces,overlay,rotate=270, cmap='viridis', filename='plot
     if title is not None:
         plt.title(title, fontsize=25)
     plt.axis('off')
-    print('plotting')
     for k,overlay in enumerate(overlays):
         #colours smoothed (mean) or median if label
         if label:
