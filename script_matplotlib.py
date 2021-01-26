@@ -10,4 +10,5 @@ mask=np.ones_like(overlay).astype(bool)
 mask[cortex]=0
 overlay[mask]=np.min(overlay)
 
-plot_surf( vertices, faces, overlay, rotate=[90,270])
+plot_surf( vertices, faces, overlay, rotate=[90,270], filename='demo_plot.png',
+          vmax = np.max(overlay[cortex]),vmin=np.min(overlay[cortex]))
