@@ -146,12 +146,13 @@ def frontback(T):
 
 
 def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename='plot.png', label=False,
-             vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, title=None, mask=None, base_size=6):
+             vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, title=None, mask=None, base_size=6, cmap_label='value'):
     """plot mesh surface with a given overlay
     vertices - vertex locations
     faces - triangles of vertex indices definings faces
     overlay - array to be plotted
     cmap - matplotlib colormap
+    cmap_label - label for the colormap
     rotate - 270 for lateral on lh, 90 for medial
     """
     vertices=vertices.astype(np.float)
@@ -218,4 +219,5 @@ def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename=
         cbar.ax.set_yticklabels([np.round(vmin,decimals=2), np.round(np.mean([vmin,vmax]),decimals=2),
                          np.round(vmax,decimals=2)])
         cbar.ax.tick_params(labelsize=25)
+        cbar.ax.set_title(cmap_label, fontsize=25, pad = 30)
     fig.savefig(filename,bbox_inches = 'tight',pad_inches=0,transparent=True)
