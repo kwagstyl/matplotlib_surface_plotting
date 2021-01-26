@@ -1,7 +1,7 @@
 # Matplotlib surface plotting
 
 Matplotlib 3D mesh plotter with no additional dependencies (optional the nibabel for loading example brain imaging mesh).
-![plot](https://github.com/kwagstyl/matplotlib_surface_plotting/blob/master/figs/demo_plot.png?raw=true)
+![plot](https://github.com/kwagstyl/matplotlib_surface_plotting/blob/main/figs/demo_plot.png?raw=true)
 
 pip install nibabel
 
