@@ -145,7 +145,7 @@ def frontback(T):
     return Z < 0, Z >= 0
 
 
-def plot_surf(vertices, faces,overlay,rotate=270, cmap='viridis', filename='plot.png', label=False,
+def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename='plot.png', label=False,
              vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, title=None, mask=None, base_size=6):
     """plot mesh surface with a given overlay
     vertices - vertex locations
