@@ -146,7 +146,7 @@ def frontback(T):
 
 
 def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename='plot.png', label=False,
-             vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, title=None, mask=None, base_size=6):
+             vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, title=None, mask=None, base_size=6, arrows=[]):
     """plot mesh surface with a given overlay
     vertices - vertex locations
     faces - triangles of vertex indices definings faces
@@ -191,9 +191,14 @@ def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename=
         C[:,2] *= intensity
         for i,view in enumerate(rotate):
             MVP = perspective(25,1,1,100) @ translate(0,0,-3) @ yrotate(view) @ xrotate(x_rotate)
+            print(MVP.T)
         #translate coordinates based on viewing position
             V = np.c_[vertices, np.ones(len(vertices))]  @ MVP.T
+            print(V)
             V /= V[:,3].reshape(-1,1)
+            print(V)
+            A_base = V
+            A_dir = arrows @ MVP.T
             V = V[F]
         #triangle coordinates
             T =  V[:,:,:2]
@@ -212,6 +217,15 @@ def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename=
             collection = PolyCollection(T, closed=True, linewidth=0,antialiased=False, facecolor=s_C)
             collection.set_alpha(1)
             ax.add_collection(collection)
+            for i, arrow in enumerate(arrows):
+                idx = int(arrow[3])
+                # print(arrow)
+                # print(idx)
+                # print(A_base[idx,0])
+                # print(A_base[idx,1])
+                # print(A_dir[i,0])
+                # print(A_dir[i,1])
+                ax.arrow(A_base[idx,0], A_base[idx,1], A_dir[i,0], A_dir[i,1])
             plt.subplots_adjust(left =0 , right =1, top=1, bottom=0,wspace=0, hspace=0)
     if colorbar:
         cbar = fig.colorbar(cm.ScalarMappable( cmap=cmap), ticks=[0,0.5, 1],cax = fig.add_axes([0.7, 0.3, 0.03, 0.38]))
