@@ -6,8 +6,6 @@ import nibabel as nb
 import numpy as np
 
 vertices, faces=nb.freesurfer.io.read_geometry('../data/lh.inflated')
-print(vertices)
-print(faces)
 overlay = nb.freesurfer.io.read_morph_data('../data/lh.thickness')
 
 #optional masking of medial wall
