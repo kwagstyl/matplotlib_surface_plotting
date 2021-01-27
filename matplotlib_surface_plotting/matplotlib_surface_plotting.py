@@ -138,6 +138,14 @@ def adjust_colours_pvals(colours, pvals,triangles,mask=None):
     colours[verts_grey_out,:] = (1.5*colours[verts_grey_out] + np.array([0.86,0.86,0.86,1]))/2.5
     return colours
 
+def adjust_colours_alpha(colours,alpha):
+    """grey out vertices according to scalar"""
+    #rescale alpha to 0.2-1.0
+    alpha_rescaled = 0.1+0.9*(alpha-np.min(alpha))/(np.max(alpha)-np.min(alpha))
+    colours = (alpha_rescaled*colours.T).T + ((1-alpha_rescaled)*np.array([0.86,0.86,0.86,1]).reshape(-1,1)).T
+    colours = np.clip(colours, 0,1)
+    return colours
+
 def frontback(T):
     """
     Sort front and back facing triangles
@@ -156,7 +164,7 @@ def frontback(T):
 
 
 def plot_surf(vertices, faces, overlay, rotate=[270,90], cmap='viridis', filename=None, label=False,
-             vmax=None, vmin=None, x_rotate=270,z_rotate=0, pvals=None, colorbar=True, title=None, mask=None, base_size=6,
+             vmax=None, vmin=None, x_rotate=270,z_rotate=0, pvals=None, colorbar=True, title=None, mask=None, base_size=6,alpha_colour = None,
               flat_map=False,
             ):
     """plot mesh surface with a given overlay
@@ -205,9 +213,11 @@ def plot_surf(vertices, faces, overlay, rotate=[270,90], cmap='viridis', filenam
             vmax = colours.max()
             vmin = colours.min()
         C = plt.get_cmap(cmap)(colours) 
+        if alpha_colour is not None:
+            C = adjust_colours_alpha(C,np.mean(alpha_colour[F],axis=1))
         if pvals is not None:
             C = adjust_colours_pvals(C,pvals,F,mask)
-            
+        
             
         #adjust intensity based on light source here
 
@@ -253,7 +263,6 @@ def plot_surf(vertices, faces, overlay, rotate=[270,90], cmap='viridis', filenam
         cbar.ax.set_yticklabels([np.round(vmin,decimals=2), np.round(np.mean([vmin,vmax]),decimals=2),
                          np.round(vmax,decimals=2)])
         cbar.ax.tick_params(labelsize=25)
-    plt.tight_layout()
     if filename is not None:
         fig.savefig(filename,bbox_inches = 'tight',pad_inches=0,transparent=True)
     return 
