@@ -196,25 +196,28 @@ def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename=
         C[:,2] *= intensity
         for i,view in enumerate(rotate):
             MVP = perspective(25,1,1,100) @ translate(0,0,-3) @ yrotate(view) @ xrotate(x_rotate)
-        #translate coordinates based on viewing position
-            V = np.c_[vertices, np.ones(len(vertices))]  @ MVP.T
-            print(V)
-            V /= V[:,3].reshape(-1,1)
-            print(V[:,3])
-            A_base = V
-            print(arrows)
-            A_dir = arrows @ MVP.T
+
+            # add vertex positions to A_dir before transforming them
+            A_dir = np.copy(arrows) 
+            A_dir[:,3] = np.ones(len(A_dir))
+            A_dir = A_dir @ MVP.T
             A_dir /= A_dir[:,3].reshape(-1,1)
-            A_dir *= 1000;
-            # A_dir = normalized(A_dir, 1)
-            print(A_dir)
+
+            #translate coordinates based on viewing position
+            V = np.c_[vertices, np.ones(len(vertices))]  @ MVP.T
+            V /= V[:,3].reshape(-1,1)
+
+            A_base = np.copy(V)
+
+            V3 = V[:, [0,1,2]]
+            A_dir *= 0.1;
+
             V = V[F]
         #triangle coordinates
             T =  V[:,:,:2]
         #get Z values for ordering triangle plotting
             Z = -V[:,:,2].mean(axis=1)
         #sort the triangles based on their z coordinate. If front/back views then need to sort a different axis
-#sort the triangles based on their z coordinate. If front/back views then need to sort a different axis
             front, back = frontback(T)
             T=T[front]
             s_C = C[front]
@@ -226,17 +229,16 @@ def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename=
             collection = PolyCollection(T, closed=True, linewidth=0,antialiased=False, facecolor=s_C)
             collection.set_alpha(1)
             ax.add_collection(collection)
+            print(front.shape)
+            print(V.shape)
             front_arrows = np.arange(len(V))[front]
+            print(front_arrows.shape)
             for i, arrow in enumerate(arrows):
                 idx = int(arrow[3])
-                # print(arrow)
-                # print(idx)
-                # print(A_base[idx,0])
-                # print(A_base[idx,1])
-                # print(A_dir[i,0])
-                # print(A_dir[i,1])
                 if idx in front_arrows:
-                    ax.arrow(A_base[idx,0], A_base[idx,1], A_dir[i,0], A_dir[i,1])
+                    half = A_dir[i,[0,1]] * 0.5
+                    ax.arrow(A_base[idx,0] - half[0], A_base[idx,1] - half[1], A_dir[i,0], A_dir[i,1], head_width=0.01)
+                    # ax.arrow(A_base[idx,0], A_base[idx,1], A_dir[i,0], A_dir[i,1], head_width=0.01)
             plt.subplots_adjust(left =0 , right =1, top=1, bottom=0,wspace=0, hspace=0)
     if colorbar:
         cbar = fig.colorbar(cm.ScalarMappable( cmap=cmap), ticks=[0,0.5, 1],cax = fig.add_axes([0.7, 0.3, 0.03, 0.38]))
