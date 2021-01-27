@@ -144,6 +144,11 @@ def frontback(T):
         (T[:,0,0]-T[:,2,0])*(T[:,0,1]+T[:,2,1])
     return Z < 0, Z >= 0
 
+def normalized(a, axis=-1, order=2):
+    l2 = np.atleast_1d(np.linalg.norm(a, order, axis))
+    l2[l2==0] = 1
+    return a / np.expand_dims(l2, axis)
+
 
 def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename='plot.png', label=False,
              vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, title=None, mask=None, base_size=6, arrows=[]):
@@ -191,14 +196,18 @@ def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename=
         C[:,2] *= intensity
         for i,view in enumerate(rotate):
             MVP = perspective(25,1,1,100) @ translate(0,0,-3) @ yrotate(view) @ xrotate(x_rotate)
-            print(MVP.T)
         #translate coordinates based on viewing position
             V = np.c_[vertices, np.ones(len(vertices))]  @ MVP.T
             print(V)
             V /= V[:,3].reshape(-1,1)
-            print(V)
+            print(V[:,3])
             A_base = V
+            print(arrows)
             A_dir = arrows @ MVP.T
+            A_dir /= A_dir[:,3].reshape(-1,1)
+            A_dir *= 1000;
+            # A_dir = normalized(A_dir, 1)
+            print(A_dir)
             V = V[F]
         #triangle coordinates
             T =  V[:,:,:2]
@@ -217,6 +226,7 @@ def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename=
             collection = PolyCollection(T, closed=True, linewidth=0,antialiased=False, facecolor=s_C)
             collection.set_alpha(1)
             ax.add_collection(collection)
+            front_arrows = np.arange(len(V))[front]
             for i, arrow in enumerate(arrows):
                 idx = int(arrow[3])
                 # print(arrow)
@@ -225,7 +235,8 @@ def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename=
                 # print(A_base[idx,1])
                 # print(A_dir[i,0])
                 # print(A_dir[i,1])
-                ax.arrow(A_base[idx,0], A_base[idx,1], A_dir[i,0], A_dir[i,1])
+                if idx in front_arrows:
+                    ax.arrow(A_base[idx,0], A_base[idx,1], A_dir[i,0], A_dir[i,1])
             plt.subplots_adjust(left =0 , right =1, top=1, bottom=0,wspace=0, hspace=0)
     if colorbar:
         cbar = fig.colorbar(cm.ScalarMappable( cmap=cmap), ticks=[0,0.5, 1],cax = fig.add_axes([0.7, 0.3, 0.03, 0.38]))
