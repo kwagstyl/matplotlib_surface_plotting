@@ -55,6 +55,14 @@ def yrotate(theta):
     return  np.array([[ c, 0, s, 0], [ 0, 1, 0, 0],
                       [-s, 0, c, 0], [ 0, 0, 0, 1]], dtype=float)
 
+def zrotate(theta):
+    t = np.pi * theta / 180
+    c, s = np.cos(t), np.sin(t)
+    return  np.array([[ c, -s, 0, 0], 
+                      [ s, c, 0, 0],
+                      [0, 0, 1, 0], 
+                      [ 0, 0, 0, 1]], dtype=float)
+
 def shading_intensity(vertices,faces, light = np.array([0,0,1]),shading=0.7):
     """shade calculation based on light source
        default is vertical light.
@@ -68,7 +76,9 @@ def shading_intensity(vertices,faces, light = np.array([0,0,1]),shading=0.7):
     intensity = (1-shading)+shading*(intensity-np.min(intensity))/((np.percentile(intensity,80)-np.min(intensity)))
     #saturate
     intensity[intensity>1]=1
+    
     return intensity
+
 
 def f7(seq):
     #returns uniques but in order to retain neighbour triangle relationship
@@ -145,8 +155,10 @@ def frontback(T):
     return Z < 0, Z >= 0
 
 
-def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename='plot.png', label=False,
-             vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, title=None, mask=None, base_size=6):
+def plot_surf(vertices, faces, overlay, rotate=[270,90], cmap='viridis', filename=None, label=False,
+             vmax=None, vmin=None, x_rotate=270,z_rotate=0, pvals=None, colorbar=True, title=None, mask=None, base_size=6,
+              flat_map=False,
+            ):
     """plot mesh surface with a given overlay
     vertices - vertex locations
     faces - triangles of vertex indices definings faces
@@ -163,10 +175,19 @@ def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename=
         overlays=[overlay]
     else:
         overlays=overlay
-    intensity=shading_intensity(vertices, F, light=np.array([0,0,1]),shading=0.7)
+    if flat_map:
+        z_rotate=90
+        rotate=[90]
+        intensity = np.ones(len(F))
+    else:
+
+        #change light source if z is rotate
+        light = np.array([0,0,1,1]) @ yrotate(z_rotate)
+        intensity=shading_intensity(vertices, F, light=light[:3],shading=0.7)
      #make figure dependent on rotations
     
-    fig = plt.figure(figsize=(base_size*len(rotate)+colorbar*(base_size-2),(base_size-1)*len(overlays)))
+    fig = plt.figure(figsize=(base_size*len(rotate)+colorbar*(base_size-2),
+                              (base_size-1)*len(overlays)))
     if title is not None:
         plt.title(title, fontsize=25)
     plt.axis('off')
@@ -186,15 +207,22 @@ def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename=
         C = plt.get_cmap(cmap)(colours) 
         if pvals is not None:
             C = adjust_colours_pvals(C,pvals,F,mask)
+            
+            
+        #adjust intensity based on light source here
+
         C[:,0] *= intensity
         C[:,1] *= intensity
         C[:,2] *= intensity
         for i,view in enumerate(rotate):
-            MVP = perspective(25,1,1,100) @ translate(0,0,-3) @ yrotate(view) @ xrotate(x_rotate)
+            MVP = perspective(25,1,1,100)  @ translate(0,0,-3) @ yrotate(view) @ zrotate(z_rotate)  @ xrotate(x_rotate) @ zrotate(270*flat_map) 
         #translate coordinates based on viewing position
             V = np.c_[vertices, np.ones(len(vertices))]  @ MVP.T
+            
             V /= V[:,3].reshape(-1,1)
+            
             V = V[F]
+            
         #triangle coordinates
             T =  V[:,:,:2]
         #get Z values for ordering triangle plotting
@@ -207,15 +235,26 @@ def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename=
             Z = Z[front]
             I = np.argsort(Z)
             T, s_C = T[I,:], s_C[I,:]
-            ax = fig.add_subplot(len(overlays),len(rotate)+1,2*k+i+1, xlim=[-.9,+.9], ylim=[-.9,+.9],aspect=1, frameon=False,
+            ax = fig.add_subplot(len(overlays),len(rotate)+1,2*k+i+1, xlim=[-.98,+.98], ylim=[-.98,+.98],aspect=1, frameon=False,
              xticks=[], yticks=[])
+            #s_C[:,3]=0.3
+            #print(s_C)
             collection = PolyCollection(T, closed=True, linewidth=0,antialiased=False, facecolor=s_C)
             collection.set_alpha(1)
             ax.add_collection(collection)
             plt.subplots_adjust(left =0 , right =1, top=1, bottom=0,wspace=0, hspace=0)
     if colorbar:
-        cbar = fig.colorbar(cm.ScalarMappable( cmap=cmap), ticks=[0,0.5, 1],cax = fig.add_axes([0.7, 0.3, 0.03, 0.38]))
+        l=0.7
+        if len(rotate)==1:
+            l=0.5
+        cbar_size= [l, 0.3, 0.03, 0.38]
+        cbar = fig.colorbar(cm.ScalarMappable( cmap=cmap),
+                            ticks=[0,0.5, 1],cax = fig.add_axes(cbar_size))
         cbar.ax.set_yticklabels([np.round(vmin,decimals=2), np.round(np.mean([vmin,vmax]),decimals=2),
                          np.round(vmax,decimals=2)])
         cbar.ax.tick_params(labelsize=25)
-    fig.savefig(filename,bbox_inches = 'tight',pad_inches=0,transparent=True)
+    plt.tight_layout()
+    if filename is not None:
+        fig.savefig(filename,bbox_inches = 'tight',pad_inches=0,transparent=True)
+    return 
+
