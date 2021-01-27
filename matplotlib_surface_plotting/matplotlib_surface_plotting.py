@@ -128,6 +128,27 @@ def adjust_colours_pvals(colours, pvals,triangles,mask=None):
     colours[verts_grey_out,:] = (1.5*colours[verts_grey_out] + np.array([0.86,0.86,0.86,1]))/2.5
     return colours
 
+def add_parcelation_colours(colours,parcel,triangles,labels=None,mask=None):
+    """delineate regions
+        Inputs : parcellation vector
+                 colors label vector (optional) """
+    if mask is not None:
+        verts_masked = mask[triangles].any(axis=1)
+        colours[verts_masked,:] = np.array([0.86,0.86,0.86,1])
+    if labels == None : 
+        labels = np.random.rand(len(list(set(parcel))),4)
+    neighbours=get_neighbours_from_tris(triangles)
+    for l,c in zip(list(set(parcel)), labels):
+        ring=get_ring_of_neighbours(parcel!=l,neighbours)
+        if len(ring)>0:
+            ring_label = np.zeros(len(neighbours)).astype(bool)
+            ring_label[ring]=1
+            ring=get_ring_of_neighbours(ring_label,neighbours)
+            ring_label[ring]=1
+            colours[ring_label[triangles].any(axis=1),:] = c
+    return colours
+
+
 def frontback(T):
     """
     Sort front and back facing triangles
@@ -146,7 +167,8 @@ def frontback(T):
 
 
 def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename='plot.png', label=False,
-             vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, title=None, mask=None, base_size=6, cmap_label='value'):
+             vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, title=None, mask=None, base_size=6, cmap_label='value',
+             parcel=None, parcel_cmap=None):
     """plot mesh surface with a given overlay
     vertices - vertex locations
     faces - triangles of vertex indices definings faces
@@ -190,6 +212,10 @@ def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename=
         C[:,0] *= intensity
         C[:,1] *= intensity
         C[:,2] *= intensity
+        
+        if parcel is not None :
+            C = add_parcelation_colours(C,parcel,F,parcel_cmap,mask)
+        
         for i,view in enumerate(rotate):
             MVP = perspective(25,1,1,100) @ translate(0,0,-3) @ yrotate(view) @ xrotate(x_rotate)
         #translate coordinates based on viewing position
