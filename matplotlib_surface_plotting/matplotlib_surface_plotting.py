@@ -144,6 +144,33 @@ def adjust_colours_pvals(colours, pvals,triangles,mask=None):
     colours[verts_grey_out,:] = (1.5*colours[verts_grey_out] + np.array([0.86,0.86,0.86,1]))/2.5
     return colours
 
+def add_parcelation_colours(colours,parcel,triangles,labels=None,mask=None):
+    """delineate regions"""
+    if mask is not None:
+        verts_masked = mask[triangles].any(axis=1)
+        colours[verts_masked,:] = np.array([0.86,0.86,0.86,1])    
+    #normalise rois and colors
+    rois=list(set(parcel))
+    if labels == None : 
+        labels = dict(zip(rois, np.random.rand(len(rois),4)))
+    #find vertices that delineate rois
+    neighbours=get_neighbours_from_tris(triangles)
+    matrix_colored = np.zeros([len(triangles), len(rois)])
+    for l,label in enumerate(rois):
+        ring=get_ring_of_neighbours(parcel!=label,neighbours)
+        if len(ring)>0:
+            ring_label = np.zeros(len(neighbours)).astype(bool)
+            ring_label[ring]=1
+            ring=get_ring_of_neighbours(ring_label,neighbours)
+            ring_label[ring]=1
+            matrix_colored[:,l] = ring_label[triangles].sum(axis=1)
+    #update colours with delineation
+    maxis = [max(matrix_colored[i,:]) for i in range(0,len(colours))]
+    colours = np.array([labels[rois[np.random.choice(np.where(matrix_colored[i,:] == maxi)[0])]] 
+                        if maxi!=0 else colours[i] for i,maxi in enumerate(maxis)])
+    return colours
+
+
 def adjust_colours_alpha(colours,alpha):
     """grey out vertices according to scalar"""
     #rescale alpha to 0.2-1.0
@@ -175,14 +202,17 @@ def normalized(a, axis=-1, order=2):
 
 
 def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename='plot.png', label=False,
+             vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, title=None, mask=None, base_size=6, cmap_label='value',
+             parcel=None, parcel_cmap=None):
              vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, 
               title=None, mask=None, base_size=6, arrows=None,arrow_subset=None,arrow_size=0.5,
-        alpha_colour = None,flat_map=False, z_rotate=0):
+        alpha_colour = None,flat_map=False, z_rotate=0,cmap_label='value',parcel=None, parcel_cmap=None):
     """plot mesh surface with a given overlay
     vertices - vertex locations
     faces - triangles of vertex indices definings faces
     overlay - array to be plotted
     cmap - matplotlib colormap
+    cmap_label - label for the colormap
     rotate - 270 for lateral on lh, 90 for medial
     """
     vertices=vertices.astype(np.float)
@@ -228,6 +258,8 @@ def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename=
             C = adjust_colours_alpha(C,np.mean(alpha_colour[F],axis=1))
         if pvals is not None:
             C = adjust_colours_pvals(C,pvals,F,mask)
+        if parcel is not None :
+            C = add_parcelation_colours(C,parcel,F,parcel_cmap,mask)
         
             
         #adjust intensity based on light source here
@@ -299,6 +331,7 @@ def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename=
         cbar.ax.set_yticklabels([np.round(vmin,decimals=2), np.round(np.mean([vmin,vmax]),decimals=2),
                          np.round(vmax,decimals=2)])
         cbar.ax.tick_params(labelsize=25)
+        cbar.ax.set_title(cmap_label, fontsize=25, pad = 30)
     if filename is not None:
         fig.savefig(filename,bbox_inches = 'tight',pad_inches=0,transparent=True)
     return 
