@@ -6,5 +6,5 @@ setup(name='matplotlib_surface_plotting',
       install_requires=['nibabel',
                         'matplotlib>=3.3.2'],
       package_dir={'matplotlib_surface_plotting':'matplotlib_surface_plotting'},
+      url="https://github.com/kwagstyl/matplotlib_surface_plotting"
      )
-
