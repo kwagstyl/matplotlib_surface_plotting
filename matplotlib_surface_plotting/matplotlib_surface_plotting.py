@@ -202,11 +202,9 @@ def normalized(a, axis=-1, order=2):
 
 
 def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename='plot.png', label=False,
-             vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, title=None, mask=None, base_size=6, cmap_label='value',
-             parcel=None, parcel_cmap=None):
-             vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, 
-              title=None, mask=None, base_size=6, arrows=None,arrow_subset=None,arrow_size=0.5,
-        alpha_colour = None,flat_map=False, z_rotate=0,cmap_label='value',parcel=None, parcel_cmap=None):
+             vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True,
+             title=None, mask=None, base_size=6, arrows=None,arrow_subset=None,arrow_size=0.5,
+            alpha_colour = None,flat_map=False, z_rotate=0,cmap_label='value',parcel=None, parcel_cmap=None):
     """plot mesh surface with a given overlay
     vertices - vertex locations
     faces - triangles of vertex indices definings faces
