@@ -17,10 +17,16 @@ def normal_vectors(vertices,faces):
     n = np.cross( tris[::,1 ] - tris[::,0]  , tris[::,2 ] - tris[::,0] )
     n=normalize_v3(n)
     return n
-#    norm[ faces[:,0] ] += n
-#    norm[ faces[:,1] ] += n
-#    norm[ faces[:,2] ] += n
- #   return normalize_v3(norm)
+
+def vertex_normals(vertices,faces):
+    norm = np.zeros( vertices.shape, dtype=vertices.dtype )
+    tris = vertices[faces]
+    n = np.cross( tris[::,1 ] - tris[::,0]  , tris[::,2 ] - tris[::,0] )
+    n=normalize_v3(n)
+    norm[ faces[:,0] ] += n
+    norm[ faces[:,1] ] += n
+    norm[ faces[:,2] ] += n
+    return normalize_v3(norm)
 
 
 def frustum(left, right, bottom, top, znear, zfar):
@@ -162,11 +168,16 @@ def frontback(T):
         (T[:,0,0]-T[:,2,0])*(T[:,0,1]+T[:,2,1])
     return Z < 0, Z >= 0
 
+def normalized(a, axis=-1, order=2):
+    l2 = np.atleast_1d(np.linalg.norm(a, order, axis))
+    l2[l2==0] = 1
+    return a / np.expand_dims(l2, axis)
 
-def plot_surf(vertices, faces, overlay, rotate=[270,90], cmap='viridis', filename=None, label=False,
-             vmax=None, vmin=None, x_rotate=270,z_rotate=0, pvals=None, colorbar=True, title=None, mask=None, base_size=6,alpha_colour = None,
-              flat_map=False,
-            ):
+
+def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename='plot.png', label=False,
+             vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, 
+              title=None, mask=None, base_size=6, arrows=None,arrow_subset=None,arrow_size=0.5,
+        alpha_colour = None,flat_map=False, z_rotate=0):
     """plot mesh surface with a given overlay
     vertices - vertex locations
     faces - triangles of vertex indices definings faces
@@ -225,12 +236,28 @@ def plot_surf(vertices, faces, overlay, rotate=[270,90], cmap='viridis', filenam
         C[:,1] *= intensity
         C[:,2] *= intensity
         for i,view in enumerate(rotate):
-            MVP = perspective(25,1,1,100)  @ translate(0,0,-3) @ yrotate(view) @ zrotate(z_rotate)  @ xrotate(x_rotate) @ zrotate(270*flat_map) 
-        #translate coordinates based on viewing position
+            MVP = perspective(25,1,1,100)  @ translate(0,0,-3) @ yrotate(view) @ zrotate(z_rotate)  @ xrotate(x_rotate) @ zrotate(270*flat_map)
+            #translate coordinates based on viewing position
             V = np.c_[vertices, np.ones(len(vertices))]  @ MVP.T
             
             V /= V[:,3].reshape(-1,1)
-            
+
+            # add vertex positions to A_dir before transforming them
+            if arrows is not None: 
+                #TODO consider adding small extra shift in
+                #surface normal direction to shift arrows out a bit
+                vertex_normal_orig = vertex_normals(vertices,faces)
+                
+                A_base = np.c_[vertices+vertex_normal_orig*0.01, np.ones(len(vertices))]  @ MVP.T
+                A_base /= A_base[:,3].reshape(-1,1)
+                A_dir = np.copy(arrows) 
+                #normalise arrow size
+                max_arrow = np.max(np.linalg.norm(arrows,axis=1))
+                A_dir = arrow_size*A_dir/max_arrow
+                A_dir = np.c_[A_dir, np.ones(len(A_dir))] @ MVP.T
+                A_dir /= A_dir[:,3].reshape(-1,1)
+               # A_dir *= 0.1;
+
             V = V[F]
             
         #triangle coordinates
@@ -238,7 +265,6 @@ def plot_surf(vertices, faces, overlay, rotate=[270,90], cmap='viridis', filenam
         #get Z values for ordering triangle plotting
             Z = -V[:,:,2].mean(axis=1)
         #sort the triangles based on their z coordinate. If front/back views then need to sort a different axis
-#sort the triangles based on their z coordinate. If front/back views then need to sort a different axis
             front, back = frontback(T)
             T=T[front]
             s_C = C[front]
@@ -247,11 +273,21 @@ def plot_surf(vertices, faces, overlay, rotate=[270,90], cmap='viridis', filenam
             T, s_C = T[I,:], s_C[I,:]
             ax = fig.add_subplot(len(overlays),len(rotate)+1,2*k+i+1, xlim=[-.98,+.98], ylim=[-.98,+.98],aspect=1, frameon=False,
              xticks=[], yticks=[])
-            #s_C[:,3]=0.3
-            #print(s_C)
             collection = PolyCollection(T, closed=True, linewidth=0,antialiased=False, facecolor=s_C)
             collection.set_alpha(1)
             ax.add_collection(collection)
+            
+            if arrows is not None:
+                front_arrows = F[front].ravel()
+                for i, arrow in enumerate(A_dir):
+                    #TODO find way to filter out arrows that should be hidden
+                    if i in arrow_subset and i in front_arrows: # and A_base[i,2]-3:
+                        half = A_dir[i,[0,1]] * 0.5
+                        ax.arrow(A_base[i,0] - half[0],
+                                 A_base[i,1] - half[1], 
+                                 A_dir[i,0], A_dir[i,1], 
+                                 head_width=0.01)
+                    # ax.arrow(A_base[idx,0], A_base[idx,1], A_dir[i,0], A_dir[i,1], head_width=0.01)
             plt.subplots_adjust(left =0 , right =1, top=1, bottom=0,wspace=0, hspace=0)
     if colorbar:
         l=0.7
