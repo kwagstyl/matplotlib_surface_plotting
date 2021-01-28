@@ -129,23 +129,29 @@ def adjust_colours_pvals(colours, pvals,triangles,mask=None):
     return colours
 
 def add_parcelation_colours(colours,parcel,triangles,labels=None,mask=None):
-    """delineate regions
-        Inputs : parcellation vector
-                 colors label vector (optional) """
+    """delineate regions"""
     if mask is not None:
         verts_masked = mask[triangles].any(axis=1)
-        colours[verts_masked,:] = np.array([0.86,0.86,0.86,1])
+        colours[verts_masked,:] = np.array([0.86,0.86,0.86,1])    
+    #normalise rois and colors
+    rois=list(set(parcel))
     if labels == None : 
-        labels = np.random.rand(len(list(set(parcel))),4)
+        labels = dict(zip(rois, np.random.rand(len(rois),4)))
+    #find vertices that delineate rois
     neighbours=get_neighbours_from_tris(triangles)
-    for l,c in zip(list(set(parcel)), labels):
-        ring=get_ring_of_neighbours(parcel!=l,neighbours)
+    matrix_colored = np.zeros([len(triangles), len(rois)])
+    for l,label in enumerate(rois):
+        ring=get_ring_of_neighbours(parcel!=label,neighbours)
         if len(ring)>0:
             ring_label = np.zeros(len(neighbours)).astype(bool)
             ring_label[ring]=1
             ring=get_ring_of_neighbours(ring_label,neighbours)
             ring_label[ring]=1
-            colours[ring_label[triangles].any(axis=1),:] = c
+            matrix_colored[:,l] = ring_label[triangles].sum(axis=1)
+    #update colours with delineation
+    maxis = [max(matrix_colored[i,:]) for i in range(0,len(colours))]
+    colours = np.array([labels[rois[np.random.choice(np.where(matrix_colored[i,:] == maxi)[0])]] 
+                        if maxi!=0 else colours[i] for i,maxi in enumerate(maxis)])
     return colours
 
 
@@ -209,13 +215,11 @@ def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename=
         C = plt.get_cmap(cmap)(colours) 
         if pvals is not None:
             C = adjust_colours_pvals(C,pvals,F,mask)
+        if parcel is not None :
+            C = add_parcelation_colours(C,parcel,F,parcel_cmap,mask)
         C[:,0] *= intensity
         C[:,1] *= intensity
         C[:,2] *= intensity
-        
-        if parcel is not None :
-            C = add_parcelation_colours(C,parcel,F,parcel_cmap,mask)
-        
         for i,view in enumerate(rotate):
             MVP = perspective(25,1,1,100) @ translate(0,0,-3) @ yrotate(view) @ xrotate(x_rotate)
         #translate coordinates based on viewing position
