@@ -151,7 +151,7 @@ def add_parcelation_colours(colours,parcel,triangles,labels=None,mask=None):
         colours[verts_masked,:] = np.array([0.86,0.86,0.86,1])    
     #normalise rois and colors
     rois=list(set(parcel))
-    if labels == None : 
+    if labels is  None : 
         labels = dict(zip(rois, np.random.rand(len(rois),4)))
     #find vertices that delineate rois
     neighbours=get_neighbours_from_tris(triangles)
