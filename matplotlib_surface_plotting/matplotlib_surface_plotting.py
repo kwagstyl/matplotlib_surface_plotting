@@ -201,17 +201,63 @@ def normalized(a, axis=-1, order=2):
     return a / np.expand_dims(l2, axis)
 
 
-def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename='plot.png', label=False,
-             vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True,
+def plot_surf(vertices, faces,overlay, rotate=[270,90], cmap='viridis', filename='plot.png', label=False,
+             vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, cmap_label='value',
              title=None, mask=None, base_size=6, arrows=None,arrow_subset=None,arrow_size=0.5,
-            alpha_colour = None,flat_map=False, z_rotate=0,cmap_label='value',parcel=None, parcel_cmap=None):
-    """plot mesh surface with a given overlay
-    vertices - vertex locations
-    faces - triangles of vertex indices definings faces
-    overlay - array to be plotted
-    cmap - matplotlib colormap
-    cmap_label - label for the colormap
-    rotate - 270 for lateral on lh, 90 for medial
+            alpha_colour = None,flat_map=False, z_rotate=0,parcel=None, parcel_cmap=None):
+    """ This function plot mesh surface with a given overlay. 
+        Features available : display in flat surface, display parcellation on top, display gradients arrows on top
+
+    
+    Parameters:
+    ----------
+        vertices     : numpy array  
+                       vertex locations
+        faces        : numpy array
+                       triangles of vertex indices definings faces
+        overlay      : numpy array
+                       array to be plotted
+        rotate       : tuple, optional
+                       rotation angle for lateral on lh,  and medial 
+        cmap         : string, optional
+                       matplotlib colormap
+        filename     : string, optional
+                       name of the figure to save
+        label        : bool, optional
+                       colours smoothed (mean) or median if label         
+        vmin, vmax   : float, optional
+                       min and max value for display intensity
+        x_rotate     : int, optional
+        
+        pvals        : bool, optional
+        
+        colorbar     : bool, optional
+                       display or not colorbar
+        cmap_label   : string, optional
+                       label of the colorbar 
+        title        : string, optional
+                       title of the figure
+        mask         : numpy array, optional
+                       vector to mask part of the surface
+        base_size    : int, optional
+        
+        arrows       : numpy array, optional
+                       dipsplay arrows in the directions of gradients on top of the surface
+        arrow_subset : numpy array, optional
+                       vector containing at which vertices display an arrow
+        arrow_size   : float, optional
+                       size of the arrow
+        alpha_colour : float, optional
+                       value to play with transparency of the overlay
+        flat_map     : bool, optional
+                       display on flat map 
+        z_rotate     : int, optional
+        
+        parcel       : numpy array, optional
+                       delineate rois on top of the surface
+        parcel_cmap  : dictionary, optional
+                       dic containing labels and colors associated for the parcellation
+                         
     """
     vertices=vertices.astype(np.float)
     F=faces.astype(int)
