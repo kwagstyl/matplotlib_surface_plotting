@@ -204,7 +204,8 @@ def normalized(a, axis=-1, order=2):
 def plot_surf(vertices, faces,overlay, rotate=[270,90], cmap='viridis', filename='plot.png', label=False,
              vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, cmap_label='value',
              title=None, mask=None, base_size=6, arrows=None,arrow_subset=None,arrow_size=0.5,
-            alpha_colour = None,flat_map=False, z_rotate=0,parcel=None, parcel_cmap=None):
+              arrow_colours = None,
+            alpha_colour = None,flat_map=False, z_rotate=0,parcel=None, parcel_cmap=None,):
     """ This function plot mesh surface with a given overlay. 
         Features available : display in flat surface, display parcellation on top, display gradients arrows on top
 
@@ -247,6 +248,7 @@ def plot_surf(vertices, faces,overlay, rotate=[270,90], cmap='viridis', filename
                        vector containing at which vertices display an arrow
         arrow_size   : float, optional
                        size of the arrow
+        arrow_colours: 
         alpha_colour : float, optional
                        value to play with transparency of the overlay
         flat_map     : bool, optional
@@ -320,10 +322,9 @@ def plot_surf(vertices, faces,overlay, rotate=[270,90], cmap='viridis', filename
 
             # add vertex positions to A_dir before transforming them
             if arrows is not None: 
-                #TODO consider adding small extra shift in
+                #add small extra shift in
                 #surface normal direction to shift arrows out a bit
                 vertex_normal_orig = vertex_normals(vertices,faces)
-                
                 A_base = np.c_[vertices+vertex_normal_orig*0.01, np.ones(len(vertices))]  @ MVP.T
                 A_base /= A_base[:,3].reshape(-1,1)
                 A_dir = np.copy(arrows) 
@@ -355,14 +356,17 @@ def plot_surf(vertices, faces,overlay, rotate=[270,90], cmap='viridis', filename
             
             if arrows is not None:
                 front_arrows = F[front].ravel()
-                for i, arrow in enumerate(A_dir):
-                    #TODO find way to filter out arrows that should be hidden
-                    if i in arrow_subset and i in front_arrows: # and A_base[i,2]-3:
+                for arrow_index,i in enumerate(arrow_subset):
+                    if i in front_arrows:
+                        arrow_colour = 'k'
+                        if arrow_colours is not None:
+                            arrow_colour = arrow_colours[arrow_index]
                         half = A_dir[i,[0,1]] * 0.5
                         ax.arrow(A_base[i,0] - half[0],
                                  A_base[i,1] - half[1], 
                                  A_dir[i,0], A_dir[i,1], 
-                                 head_width=0.01)
+                                 head_width=0.01,
+                                color = arrow_colour)
                     # ax.arrow(A_base[idx,0], A_base[idx,1], A_dir[i,0], A_dir[i,1], head_width=0.01)
             plt.subplots_adjust(left =0 , right =1, top=1, bottom=0,wspace=0, hspace=0)
     if colorbar:
