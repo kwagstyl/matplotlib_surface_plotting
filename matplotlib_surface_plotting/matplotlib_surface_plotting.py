@@ -319,7 +319,8 @@ def plot_surf(vertices, faces,overlay, rotate=[270,90], cmap='viridis', filename
             V = np.c_[vertices, np.ones(len(vertices))]  @ MVP.T
             
             V /= V[:,3].reshape(-1,1)
-
+            center = np.array([0, 0, 0, 1]) @ MVP.T;
+            center /= center[3];
             # add vertex positions to A_dir before transforming them
             if arrows is not None: 
                 #add small extra shift in
@@ -357,7 +358,7 @@ def plot_surf(vertices, faces,overlay, rotate=[270,90], cmap='viridis', filename
             if arrows is not None:
                 front_arrows = F[front].ravel()
                 for arrow_index,i in enumerate(arrow_subset):
-                    if i in front_arrows:
+                    if i in front_arrows and A_base[i,2] < center[2] + 0.01:
                         arrow_colour = 'k'
                         if arrow_colours is not None:
                             arrow_colour = arrow_colours[arrow_index]
