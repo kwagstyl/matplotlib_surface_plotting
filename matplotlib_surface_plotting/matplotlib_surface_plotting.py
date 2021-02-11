@@ -144,6 +144,33 @@ def adjust_colours_pvals(colours, pvals,triangles,mask=None):
     colours[verts_grey_out,:] = (1.5*colours[verts_grey_out] + np.array([0.86,0.86,0.86,1]))/2.5
     return colours
 
+def add_parcelation_colours(colours,parcel,triangles,labels=None,mask=None):
+    """delineate regions"""
+    if mask is not None:
+        verts_masked = mask[triangles].any(axis=1)
+        colours[verts_masked,:] = np.array([0.86,0.86,0.86,1])    
+    #normalise rois and colors
+    rois=list(set(parcel))
+    if labels is  None : 
+        labels = dict(zip(rois, np.random.rand(len(rois),4)))
+    #find vertices that delineate rois
+    neighbours=get_neighbours_from_tris(triangles)
+    matrix_colored = np.zeros([len(triangles), len(rois)])
+    for l,label in enumerate(rois):
+        ring=get_ring_of_neighbours(parcel!=label,neighbours)
+        if len(ring)>0:
+            ring_label = np.zeros(len(neighbours)).astype(bool)
+            ring_label[ring]=1
+            ring=get_ring_of_neighbours(ring_label,neighbours)
+            ring_label[ring]=1
+            matrix_colored[:,l] = ring_label[triangles].sum(axis=1)
+    #update colours with delineation
+    maxis = [max(matrix_colored[i,:]) for i in range(0,len(colours))]
+    colours = np.array([labels[rois[np.random.choice(np.where(matrix_colored[i,:] == maxi)[0])]] 
+                        if maxi!=0 else colours[i] for i,maxi in enumerate(maxis)])
+    return colours
+
+
 def adjust_colours_alpha(colours,alpha):
     """grey out vertices according to scalar"""
     #rescale alpha to 0.2-1.0
@@ -173,16 +200,67 @@ def normalized(a, axis=-1, order=2):
     l2[l2==0] = 1
     return a / np.expand_dims(l2, axis)
 
-def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename='plot.png', label=False,
-             vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, 
-              title=None, mask=None, base_size=6, arrows=None,arrow_subset=None,arrow_size=0.5,
-        alpha_colour = None,flat_map=False, z_rotate=0):
-    """plot mesh surface with a given overlay
-    vertices - vertex locations
-    faces - triangles of vertex indices definings faces
-    overlay - array to be plotted
-    cmap - matplotlib colormap
-    rotate - 270 for lateral on lh, 90 for medial
+
+
+def plot_surf(vertices, faces,overlay, rotate=[270,90], cmap='viridis', filename='plot.png', label=False,
+             vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, cmap_label='value',
+             title=None, mask=None, base_size=6, arrows=None,arrow_subset=None,arrow_size=0.5,
+              arrow_colours = None,
+            alpha_colour = None,flat_map=False, z_rotate=0,parcel=None, parcel_cmap=None,):
+    """ This function plot mesh surface with a given overlay. 
+        Features available : display in flat surface, display parcellation on top, display gradients arrows on top
+
+    
+    Parameters:
+    ----------
+        vertices     : numpy array  
+                       vertex locations
+        faces        : numpy array
+                       triangles of vertex indices definings faces
+        overlay      : numpy array
+                       array to be plotted
+        rotate       : tuple, optional
+                       rotation angle for lateral on lh,  and medial 
+        cmap         : string, optional
+                       matplotlib colormap
+        filename     : string, optional
+                       name of the figure to save
+        label        : bool, optional
+                       colours smoothed (mean) or median if label         
+        vmin, vmax   : float, optional
+                       min and max value for display intensity
+        x_rotate     : int, optional
+        
+        pvals        : bool, optional
+        
+        colorbar     : bool, optional
+                       display or not colorbar
+        cmap_label   : string, optional
+                       label of the colorbar 
+        title        : string, optional
+                       title of the figure
+        mask         : numpy array, optional
+                       vector to mask part of the surface
+        base_size    : int, optional
+        
+        arrows       : numpy array, optional
+                       dipsplay arrows in the directions of gradients on top of the surface
+        arrow_subset : numpy array, optional
+                       vector containing at which vertices display an arrow
+        arrow_size   : float, optional
+                       size of the arrow
+        arrow_colours: 
+        alpha_colour : float, optional
+                       value to play with transparency of the overlay
+        flat_map     : bool, optional
+                       display on flat map 
+        z_rotate     : int, optional
+        
+        parcel       : numpy array, optional
+                       delineate rois on top of the surface
+        parcel_cmap  : dictionary, optional
+                       dic containing labels and colors associated for the parcellation
+                         
     """
     vertices=vertices.astype(np.float)
     F=faces.astype(int)
@@ -227,6 +305,8 @@ def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename=
             C = adjust_colours_alpha(C,np.mean(alpha_colour[F],axis=1))
         if pvals is not None:
             C = adjust_colours_pvals(C,pvals,F,mask)
+        if parcel is not None :
+            C = add_parcelation_colours(C,parcel,F,parcel_cmap,mask)
         
             
         #adjust intensity based on light source here
@@ -246,10 +326,9 @@ def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename=
 
             # add vertex positions to A_dir before transforming them
             if arrows is not None: 
-                #TODO consider adding small extra shift in
+                #add small extra shift in
                 #surface normal direction to shift arrows out a bit
                 vertex_normal_orig = vertex_normals(vertices,faces)
-                
                 A_base = np.c_[vertices+vertex_normal_orig*0.01, np.ones(len(vertices))]  @ MVP.T
                 A_base /= A_base[:,3].reshape(-1,1)
                 A_dir = np.copy(arrows) 
@@ -281,14 +360,18 @@ def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename=
             
             if arrows is not None:
                 front_arrows = F[front].ravel()
-                for i, arrow in enumerate(A_dir):
-                    #TODO find way to filter out arrows that should be hidden
-                    if i in arrow_subset and i in front_arrows and A_base[i,2] < center[2] + 0.01:
+
+                for arrow_index,i in enumerate(arrow_subset):
+                    if i in front_arrows and A_base[i,2] < center[2] + 0.01:
+                        arrow_colour = 'k'
+                        if arrow_colours is not None:
+                            arrow_colour = arrow_colours[arrow_index]
                         half = A_dir[i,[0,1]] * 0.5
                         ax.arrow(A_base[i,0] - half[0],
                                  A_base[i,1] - half[1], 
                                  A_dir[i,0], A_dir[i,1], 
-                                 head_width=0.01)
+                                 head_width=0.01,
+                                color = arrow_colour)
                     # ax.arrow(A_base[idx,0], A_base[idx,1], A_dir[i,0], A_dir[i,1], head_width=0.01)
             plt.subplots_adjust(left =0 , right =1, top=1, bottom=0,wspace=0, hspace=0)
     if colorbar:
@@ -301,6 +384,7 @@ def plot_surf(vertices, faces,overlay,rotate=[270,90], cmap='viridis', filename=
         cbar.ax.set_yticklabels([np.round(vmin,decimals=2), np.round(np.mean([vmin,vmax]),decimals=2),
                          np.round(vmax,decimals=2)])
         cbar.ax.tick_params(labelsize=25)
+        cbar.ax.set_title(cmap_label, fontsize=25, pad = 30)
     if filename is not None:
         fig.savefig(filename,bbox_inches = 'tight',pad_inches=0,transparent=True)
     return 
