@@ -201,6 +201,7 @@ def normalized(a, axis=-1, order=2):
     return a / np.expand_dims(l2, axis)
 
 
+
 def plot_surf(vertices, faces,overlay, rotate=[270,90], cmap='viridis', filename='plot.png', label=False,
              vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, cmap_label='value',
              title=None, mask=None, base_size=6, arrows=None,arrow_subset=None,arrow_size=0.5,
@@ -317,6 +318,9 @@ def plot_surf(vertices, faces,overlay, rotate=[270,90], cmap='viridis', filename
             MVP = perspective(25,1,1,100)  @ translate(0,0,-3) @ yrotate(view) @ zrotate(z_rotate)  @ xrotate(x_rotate) @ zrotate(270*flat_map)
             #translate coordinates based on viewing position
             V = np.c_[vertices, np.ones(len(vertices))]  @ MVP.T
+
+            center = np.array([0, 0, 0, 1]) @ MVP.T;
+            center /= center[3];
             
             V /= V[:,3].reshape(-1,1)
             center = np.array([0, 0, 0, 1]) @ MVP.T;
@@ -329,12 +333,12 @@ def plot_surf(vertices, faces,overlay, rotate=[270,90], cmap='viridis', filename
                 A_base = np.c_[vertices+vertex_normal_orig*0.01, np.ones(len(vertices))]  @ MVP.T
                 A_base /= A_base[:,3].reshape(-1,1)
                 A_dir = np.copy(arrows) 
+
                 #normalise arrow size
                 max_arrow = np.max(np.linalg.norm(arrows,axis=1))
                 A_dir = arrow_size*A_dir/max_arrow
                 A_dir = np.c_[A_dir, np.ones(len(A_dir))] @ MVP.T
                 A_dir /= A_dir[:,3].reshape(-1,1)
-               # A_dir *= 0.1;
 
             V = V[F]
             
@@ -357,6 +361,7 @@ def plot_surf(vertices, faces,overlay, rotate=[270,90], cmap='viridis', filename
             
             if arrows is not None:
                 front_arrows = F[front].ravel()
+
                 for arrow_index,i in enumerate(arrow_subset):
                     if i in front_arrows and A_base[i,2] < center[2] + 0.01:
                         arrow_colour = 'k'
