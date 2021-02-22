@@ -124,7 +124,14 @@ def get_neighbours_from_tris(tris, label=None):
             neighbours[k] = set(neighbours[k]).intersection(label)
         else :
             neighbours[k]=f7(neighbours[k])
-    return np.array(neighbours)
+    return np.array(neighbours,dtype=object)
+
+def mask_colours(colours,triangles,mask):
+    """grey out mask"""
+    if mask is not None:
+        verts_masked = mask[triangles].any(axis=1)
+        colours[verts_masked,:] = np.array([0.86,0.86,0.86,1])
+    return colours
 
 def adjust_colours_pvals(colours, pvals,triangles,mask=None):
     """red ring around clusters and greying out non-significant vertices"""
@@ -201,11 +208,10 @@ def normalized(a, axis=-1, order=2):
     return a / np.expand_dims(l2, axis)
 
 
-
 def plot_surf(vertices, faces,overlay, rotate=[270,90], cmap='viridis', filename='plot.png', label=False,
              vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, cmap_label='value',
              title=None, mask=None, base_size=6, arrows=None,arrow_subset=None,arrow_size=0.5,
-              arrow_colours = None,
+              arrow_colours = None,arrow_head=0.05,arrow_width=0.001,
             alpha_colour = None,flat_map=False, z_rotate=0,parcel=None, parcel_cmap=None,):
     """ This function plot mesh surface with a given overlay. 
         Features available : display in flat surface, display parcellation on top, display gradients arrows on top
@@ -276,7 +282,6 @@ def plot_surf(vertices, faces,overlay, rotate=[270,90], cmap='viridis', filename
         rotate=[90]
         intensity = np.ones(len(F))
     else:
-
         #change light source if z is rotate
         light = np.array([0,0,1,1]) @ yrotate(z_rotate)
         intensity=shading_intensity(vertices, F, light=light[:3],shading=0.7)
@@ -305,6 +310,8 @@ def plot_surf(vertices, faces,overlay, rotate=[270,90], cmap='viridis', filename
             C = adjust_colours_alpha(C,np.mean(alpha_colour[F],axis=1))
         if pvals is not None:
             C = adjust_colours_pvals(C,pvals,F,mask)
+        elif mask is not None:
+            C = mask_colours(C,F,mask)
         if parcel is not None :
             C = add_parcelation_colours(C,parcel,F,parcel_cmap,mask)
         
@@ -318,27 +325,25 @@ def plot_surf(vertices, faces,overlay, rotate=[270,90], cmap='viridis', filename
             MVP = perspective(25,1,1,100)  @ translate(0,0,-3) @ yrotate(view) @ zrotate(z_rotate)  @ xrotate(x_rotate) @ zrotate(270*flat_map)
             #translate coordinates based on viewing position
             V = np.c_[vertices, np.ones(len(vertices))]  @ MVP.T
-
-            center = np.array([0, 0, 0, 1]) @ MVP.T;
-            center /= center[3];
             
             V /= V[:,3].reshape(-1,1)
             center = np.array([0, 0, 0, 1]) @ MVP.T;
             center /= center[3];
             # add vertex positions to A_dir before transforming them
             if arrows is not None: 
-                #add small extra shift in
-                #surface normal direction to shift arrows out a bit
+                #calculate arrow position + small shift in surface normal direction
                 vertex_normal_orig = vertex_normals(vertices,faces)
                 A_base = np.c_[vertices+vertex_normal_orig*0.01, np.ones(len(vertices))]  @ MVP.T
                 A_base /= A_base[:,3].reshape(-1,1)
+                
+                #calculate arrow direction
                 A_dir = np.copy(arrows) 
-
                 #normalise arrow size
                 max_arrow = np.max(np.linalg.norm(arrows,axis=1))
                 A_dir = arrow_size*A_dir/max_arrow
                 A_dir = np.c_[A_dir, np.ones(len(A_dir))] @ MVP.T
                 A_dir /= A_dir[:,3].reshape(-1,1)
+               # A_dir *= 0.1;
 
             V = V[F]
             
@@ -358,20 +363,27 @@ def plot_surf(vertices, faces,overlay, rotate=[270,90], cmap='viridis', filename
             collection = PolyCollection(T, closed=True, linewidth=0,antialiased=False, facecolor=s_C)
             collection.set_alpha(1)
             ax.add_collection(collection)
-            
+            #add arrows to image
             if arrows is not None:
                 front_arrows = F[front].ravel()
-
                 for arrow_index,i in enumerate(arrow_subset):
                     if i in front_arrows and A_base[i,2] < center[2] + 0.01:
                         arrow_colour = 'k'
                         if arrow_colours is not None:
                             arrow_colour = arrow_colours[arrow_index]
-                        half = A_dir[i,[0,1]] * 0.5
+                        #if length of arrows corresponds perfectly with coordinates
+                        # assume 1:1 matching
+                        if len(A_dir) == len(A_base):
+                            direction = A_dir[i]
+                        #otherwise, assume it is a custom list matching the 
+                        elif len(A_dir) == len(arrow_subset):
+                            direction  = A_dir[arrow_index]
+                        half = direction * 0.5
+                        
                         ax.arrow(A_base[i,0] - half[0],
                                  A_base[i,1] - half[1], 
-                                 A_dir[i,0], A_dir[i,1], 
-                                 head_width=0.01,
+                                 direction[0], direction[1], 
+                                 head_width=arrow_head,width =arrow_width,
                                 color = arrow_colour)
                     # ax.arrow(A_base[idx,0], A_base[idx,1], A_dir[i,0], A_dir[i,1], head_width=0.01)
             plt.subplots_adjust(left =0 , right =1, top=1, bottom=0,wspace=0, hspace=0)
