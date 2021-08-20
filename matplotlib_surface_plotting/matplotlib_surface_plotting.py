@@ -208,7 +208,7 @@ def normalized(a, axis=-1, order=2):
     return a / np.expand_dims(l2, axis)
 
 
-def plot_surf(vertices, faces,overlay, rotate=[270,90], cmap='viridis', filename='plot.png', label=False,
+def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename='plot.png', label=False,
              vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, cmap_label='value',
              title=None, mask=None, base_size=6, arrows=None,arrow_subset=None,arrow_size=0.5,
               arrow_colours = None,arrow_head=0.05,arrow_width=0.001,
