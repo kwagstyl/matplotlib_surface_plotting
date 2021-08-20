@@ -301,11 +301,11 @@ def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename
         if vmax is not None:
             colours = (colours - vmin)/(vmax-vmin)
             colours = np.clip(colours,0,1)
-        else:
-            colours = (colours - colours.min())/(colours.max()-colours.min())
+        else: 
             vmax = colours.max()
             vmin = colours.min()
-        C = plt.get_cmap(cmap)(colours) 
+            colours = (colours - colours.min())/(colours.max()-colours.min())
+        C = plt.get_cmap(cmap)(colours)
         if alpha_colour is not None:
             C = adjust_colours_alpha(C,np.mean(alpha_colour[F],axis=1))
         if pvals is not None:
@@ -314,10 +314,8 @@ def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename
             C = mask_colours(C,F,mask)
         if parcel is not None :
             C = add_parcelation_colours(C,parcel,F,parcel_cmap,mask)
-        
             
         #adjust intensity based on light source here
-
         C[:,0] *= intensity
         C[:,1] *= intensity
         C[:,2] *= intensity
@@ -360,7 +358,7 @@ def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename
             T, s_C = T[I,:], s_C[I,:]
             ax = fig.add_subplot(len(overlays),len(rotate)+1,2*k+i+1, xlim=[-.98,+.98], ylim=[-.98,+.98],aspect=1, frameon=False,
              xticks=[], yticks=[])
-            collection = PolyCollection(T, closed=True, linewidth=0,antialiased=False, facecolor=s_C)
+            collection = PolyCollection(T, closed=True, linewidth=0,antialiased=False, facecolor=s_C, cmap=cmap)
             collection.set_alpha(1)
             ax.add_collection(collection)
             #add arrows to image
@@ -392,8 +390,10 @@ def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename
         if len(rotate)==1:
             l=0.5
         cbar_size= [l, 0.3, 0.03, 0.38]
-        cbar = fig.colorbar(cm.ScalarMappable( cmap=cmap),
-                            ticks=[0,0.5, 1],cax = fig.add_axes(cbar_size))
+        cbar = fig.colorbar(collection,
+                            ticks=[0,0.5, 1],
+                            cax = fig.add_axes(cbar_size),
+                           )
         cbar.ax.set_yticklabels([np.round(vmin,decimals=2), np.round(np.mean([vmin,vmax]),decimals=2),
                          np.round(vmax,decimals=2)])
         cbar.ax.tick_params(labelsize=25)
