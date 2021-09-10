@@ -172,9 +172,9 @@ def add_parcelation_colours(colours,parcel,triangles,labels=None,mask=None):
         if len(ring)>0:
             ring_label = np.zeros(len(neighbours)).astype(bool)
             ring_label[ring]=1
-            ring=get_ring_of_neighbours(ring_label,neighbours)
-            ring_label[ring]=1
-            matrix_colored[:,l] = ring_label[triangles].sum(axis=1)
+#            ring=get_ring_of_neighbours(ring_label,neighbours)
+#            ring_label[ring]=1
+            matrix_colored[:,l] = np.median(ring_label[triangles],axis=1) #ring_label[triangles].sum(axis=1)
     #update colours with delineation
     maxis = [max(matrix_colored[i,:]) for i in range(0,len(colours))]
     colours = np.array([labels[rois[np.random.choice(np.where(matrix_colored[i,:] == maxi)[0])]] 
@@ -323,6 +323,8 @@ def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename
         C[:,0] *= intensity
         C[:,1] *= intensity
         C[:,2] *= intensity
+        
+        collection = PolyCollection([], closed=True, linewidth=0,antialiased=False, facecolor=C, cmap=cmap)
         for i,view in enumerate(rotate):
             MVP = perspective(25,1,1,100)  @ translate(0,0,-3) @ yrotate(view) @ zrotate(z_rotate)  @ xrotate(x_rotate) @ zrotate(270*flat_map)
             #translate coordinates based on viewing position
@@ -389,6 +391,7 @@ def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename
                                 color = arrow_colour)
                     # ax.arrow(A_base[idx,0], A_base[idx,1], A_dir[i,0], A_dir[i,1], head_width=0.01)
             plt.subplots_adjust(left =0 , right =1, top=1, bottom=0,wspace=0, hspace=0)
+        
     if colorbar:
         l=0.7
         if len(rotate)==1:
