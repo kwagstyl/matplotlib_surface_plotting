@@ -151,7 +151,9 @@ def adjust_colours_pvals(colours, pvals,triangles,mask=None):
     colours[verts_grey_out,:] = (1.5*colours[verts_grey_out] + np.array([0.86,0.86,0.86,1]))/2.5
     return colours
 
-def add_parcelation_colours(colours,parcel,triangles,labels=None,mask=None):
+
+
+def add_parcellation_colours(colours,parcel,triangles,labels=None,mask=None,filled=False):
     """delineate regions"""
     if mask is not None:
         verts_masked = mask[triangles].any(axis=1)
@@ -165,6 +167,11 @@ def add_parcelation_colours(colours,parcel,triangles,labels=None,mask=None):
     
     #remove transparent rois
     #find vertices that delineate rois
+    if filled:
+        colours=np.zeros_like(colours)
+        for l,label in enumerate(rois):
+            colours[np.median(parcel[triangles],axis=1)==label]=labels[label]
+        return colours
     neighbours=get_neighbours_from_tris(triangles)
     matrix_colored = np.zeros([len(triangles), len(rois)])
     for l,label in enumerate(rois):
@@ -216,7 +223,7 @@ def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename
              vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, cmap_label='value',
              title=None, mask=None, base_size=6, arrows=None,arrow_subset=None,arrow_size=0.5,
               arrow_colours = None,arrow_head=0.05,arrow_width=0.001,
-            alpha_colour = None,flat_map=False, z_rotate=0,parcel=None, parcel_cmap=None,):
+            alpha_colour = None,flat_map=False, z_rotate=0,parcel=None, parcel_cmap=None,filled_parcels=False,return_ax=False):
     """ This function plot mesh surface with a given overlay. 
         Features available : display in flat surface, display parcellation on top, display gradients arrows on top
 
@@ -270,6 +277,7 @@ def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename
                        delineate rois on top of the surface
         parcel_cmap  : dictionary, optional
                        dic containing labels and colors associated for the parcellation
+        filled_parcels: fill the parcel colours
                          
     """
     vertices=vertices.astype(np.float)
@@ -317,7 +325,7 @@ def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename
         elif mask is not None:
             C = mask_colours(C,F,mask)
         if parcel is not None :
-            C = add_parcelation_colours(C,parcel,F,parcel_cmap,mask)
+            C = add_parcellation_colours(C,parcel,F,parcel_cmap,mask,filled=filled_parcels)
             
         #adjust intensity based on light source here
         C[:,0] *= intensity
@@ -407,5 +415,7 @@ def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename
         cbar.ax.set_title(cmap_label, fontsize=25, pad = 30)
     if filename is not None:
         fig.savefig(filename,bbox_inches = 'tight',pad_inches=0,transparent=True)
+    if return_ax:
+        return fig,ax,MVP
     return 
 
