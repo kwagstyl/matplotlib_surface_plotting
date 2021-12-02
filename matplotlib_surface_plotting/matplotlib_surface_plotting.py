@@ -289,6 +289,9 @@ def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename
         overlays=[overlay]
     else:
         overlays=overlay
+    if parcel is not None:
+        if parcel.sum() == 0:
+            parcel = None
     if flat_map:
         z_rotate=90
         rotate=[90]
