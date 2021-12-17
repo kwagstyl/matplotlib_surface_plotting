@@ -222,8 +222,9 @@ def normalized(a, axis=-1, order=2):
 def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename='plot.png', label=False,
              vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, cmap_label='value',
              title=None, mask=None, base_size=6, arrows=None,arrow_subset=None,arrow_size=0.5,
-              arrow_colours = None,arrow_head=0.05,arrow_width=0.001,
-            alpha_colour = None,flat_map=False, z_rotate=0,parcel=None, parcel_cmap=None,filled_parcels=False,return_ax=False):
+             arrow_colours = None,arrow_head=0.05,arrow_width=0.001,
+             alpha_colour = None,flat_map=False, z_rotate=0, transparency = 1, show_back= False,
+             parcel=None, parcel_cmap=None,filled_parcels=False,return_ax=False):
     """ This function plot mesh surface with a given overlay. 
         Features available : display in flat surface, display parcellation on top, display gradients arrows on top
 
@@ -272,7 +273,10 @@ def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename
         flat_map     : bool, optional
                        display on flat map 
         z_rotate     : int, optional
-        
+        transparency : float, optional
+                       value between 0-1 to play with mesh transparency
+        show_back    : bool, optional
+                       display or hide the faces in the back of the mesh (z<0) 
         parcel       : numpy array, optional
                        delineate rois on top of the surface
         parcel_cmap  : dictionary, optional
@@ -368,15 +372,18 @@ def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename
             Z = -V[:,:,2].mean(axis=1)
         #sort the triangles based on their z coordinate. If front/back views then need to sort a different axis
             front, back = frontback(T)
-            T=T[front]
-            s_C = C[front]
-            Z = Z[front]
+            if show_back == False:
+                T=T[front]
+                s_C = C[front]
+                Z = Z[front]
+            else:
+                s_C = C
             I = np.argsort(Z)
             T, s_C = T[I,:], s_C[I,:]
             ax = fig.add_subplot(len(overlays),len(rotate)+1,2*k+i+1, xlim=[-.98,+.98], ylim=[-.98,+.98],aspect=1, frameon=False,
              xticks=[], yticks=[])
             collection = PolyCollection(T, closed=True, linewidth=0,antialiased=False, facecolor=s_C, cmap=cmap)
-            collection.set_alpha(1)
+            collection.set_alpha(transparency)
             ax.add_collection(collection)
             #add arrows to image
             if arrows is not None:
