@@ -126,18 +126,18 @@ def get_neighbours_from_tris(tris, label=None):
             neighbours[k]=f7(neighbours[k])
     return np.array(neighbours,dtype=object)
 
-def mask_colours(colours,triangles,mask):
+def mask_colours(colours,triangles,mask,mask_colour=None):
     """grey out mask"""
     if mask is not None:
+        if mask_colour is None:
+            mask_colour = np.array([0.86,0.86,0.86,1])
         verts_masked = mask[triangles].any(axis=1)
-        colours[verts_masked,:] = np.array([0.86,0.86,0.86,1])
+        colours[verts_masked,:] = mask_colour
     return colours
 
-def adjust_colours_pvals(colours, pvals,triangles,mask=None):
+def adjust_colours_pvals(colours, pvals,triangles,mask=None,mask_colour=None):
     """red ring around clusters and greying out non-significant vertices"""
-    if mask is not None:
-        verts_masked = mask[triangles].any(axis=1)
-        colours[verts_masked,:] = np.array([0.86,0.86,0.86,1])
+    colours=mask_colours(colours,triangles,mask,mask_colour)
     neighbours=get_neighbours_from_tris(triangles)
     ring=get_ring_of_neighbours(pvals<0.05,neighbours)
     if len(ring)>0:
@@ -153,18 +153,15 @@ def adjust_colours_pvals(colours, pvals,triangles,mask=None):
 
 
 
-def add_parcellation_colours(colours,parcel,triangles,labels=None,mask=None,filled=False):
+def add_parcellation_colours(colours,parcel,triangles,labels=None,mask=None,filled=False,mask_colour=None):
     """delineate regions"""
-    if mask is not None:
-        verts_masked = mask[triangles].any(axis=1)
-        colours[verts_masked,:] = np.array([0.86,0.86,0.86,1])    
+    colours=mask_colours(colours,triangles,mask,mask_colour=mask_colour)
     #normalise rois and colors
     rois=list(set(parcel))
     if 0 in rois:
         rois.remove(0)
     if labels is  None : 
         labels = dict(zip(rois, np.random.rand(len(rois),4)))
-    
     #remove transparent rois
     #find vertices that delineate rois
     if filled:
@@ -179,8 +176,9 @@ def add_parcellation_colours(colours,parcel,triangles,labels=None,mask=None,fill
         if len(ring)>0:
             ring_label = np.zeros(len(neighbours)).astype(bool)
             ring_label[ring]=1
-#            ring=get_ring_of_neighbours(ring_label,neighbours)
-#            ring_label[ring]=1
+  #          ring=get_ring_of_neighbours(ring_label,neighbours)
+ #           ring_label[ring]=1
+#            matrix_colored[:,l] = ring_label[triangles].sum(axis=1)
             matrix_colored[:,l] = np.median(ring_label[triangles],axis=1) #ring_label[triangles].sum(axis=1)
     #update colours with delineation
     maxis = [max(matrix_colored[i,:]) for i in range(0,len(colours))]
@@ -222,7 +220,7 @@ def normalized(a, axis=-1, order=2):
 def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename='plot.png', label=False,
              vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, cmap_label='value',
              title=None, mask=None, base_size=6, arrows=None,arrow_subset=None,arrow_size=0.5,
-              arrow_colours = None,arrow_head=0.05,arrow_width=0.001,
+              arrow_colours = None,arrow_head=0.05,arrow_width=0.001,mask_colour=None,
             alpha_colour = None,flat_map=False, z_rotate=0,parcel=None, parcel_cmap=None,filled_parcels=False,return_ax=False):
     """ This function plot mesh surface with a given overlay. 
         Features available : display in flat surface, display parcellation on top, display gradients arrows on top
@@ -321,11 +319,12 @@ def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename
         if alpha_colour is not None:
             C = adjust_colours_alpha(C,np.mean(alpha_colour[F],axis=1))
         if pvals is not None:
-            C = adjust_colours_pvals(C,pvals,F,mask)
+            C = adjust_colours_pvals(C,pvals,F,mask,mask_colour=mask_colour)
         elif mask is not None:
-            C = mask_colours(C,F,mask)
+            C = mask_colours(C,F,mask,mask_colour=mask_colour)
         if parcel is not None :
-            C = add_parcellation_colours(C,parcel,F,parcel_cmap,mask,filled=filled_parcels)
+            C = add_parcellation_colours(C,parcel,F,parcel_cmap,mask,mask_colour=mask_colour,
+                  filled=filled_parcels)
             
         #adjust intensity based on light source here
         C[:,0] *= intensity
