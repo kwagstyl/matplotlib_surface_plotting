@@ -135,7 +135,8 @@ def mask_colours(colours,triangles,mask,mask_colour=None):
         colours[verts_masked,:] = mask_colour
     return colours
 
-def adjust_colours_pvals(colours, pvals,triangles,mask=None,mask_colour=None):
+def adjust_colours_pvals(colours, pvals,triangles,mask=None,mask_colour=None,
+             border_colour = np.array([1.0,0,0,1])):
     """red ring around clusters and greying out non-significant vertices"""
     colours=mask_colours(colours,triangles,mask,mask_colour)
     neighbours=get_neighbours_from_tris(triangles)
@@ -145,7 +146,7 @@ def adjust_colours_pvals(colours, pvals,triangles,mask=None,mask_colour=None):
         ring_label[ring]=1
         ring=get_ring_of_neighbours(ring_label,neighbours)
         ring_label[ring]=1
-        colours[ring_label[triangles].any(axis=1),:] = np.array([1.0,0,0,1])
+        colours[ring_label[triangles].any(axis=1),:] = border_colour
     grey_out=pvals<0.05
     verts_grey_out= grey_out[triangles].any(axis=1)
     colours[verts_grey_out,:] = (1.5*colours[verts_grey_out] + np.array([0.86,0.86,0.86,1]))/2.5
@@ -153,7 +154,8 @@ def adjust_colours_pvals(colours, pvals,triangles,mask=None,mask_colour=None):
 
 
 
-def add_parcellation_colours(colours,parcel,triangles,labels=None,mask=None,filled=False,mask_colour=None):
+def add_parcellation_colours(colours,parcel,triangles,labels=None,
+                  mask=None,filled=False,mask_colour=None, neighbours=None):
     """delineate regions"""
     colours=mask_colours(colours,triangles,mask,mask_colour=mask_colour)
     #normalise rois and colors
@@ -169,7 +171,8 @@ def add_parcellation_colours(colours,parcel,triangles,labels=None,mask=None,fill
         for l,label in enumerate(rois):
             colours[np.median(parcel[triangles],axis=1)==label]=labels[label]
         return colours
-    neighbours=get_neighbours_from_tris(triangles)
+    if neighbours is None:
+        neighbours=get_neighbours_from_tris(triangles)
     matrix_colored = np.zeros([len(triangles), len(rois)])
     for l,label in enumerate(rois):
         ring=get_ring_of_neighbours(parcel!=label,neighbours)
@@ -220,8 +223,10 @@ def normalized(a, axis=-1, order=2):
 def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename='plot.png', label=False,
              vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, cmap_label='value',
              title=None, mask=None, base_size=6, arrows=None,arrow_subset=None,arrow_size=0.5,
-              arrow_colours = None,arrow_head=0.05,arrow_width=0.001,mask_colour=None,transparency=1,show_back=False,
-            alpha_colour = None,flat_map=False, z_rotate=0,parcel=None, parcel_cmap=None,filled_parcels=False,return_ax=False):
+             arrow_colours = None,arrow_head=0.05,arrow_width=0.001,
+             mask_colour=None,transparency=1,show_back=False,border_colour = np.array([1,0,0,1]),
+             alpha_colour = None,flat_map=False, z_rotate=0,neighbours=None,
+             parcel=None, parcel_cmap=None,filled_parcels=False,return_ax=False):
     """ This function plot mesh surface with a given overlay. 
         Features available : display in flat surface, display parcellation on top, display gradients arrows on top
 
@@ -279,9 +284,10 @@ def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename
         parcel_cmap  : dictionary, optional
                        dic containing labels and colors associated for the parcellation
         filled_parcels: fill the parcel colours
+        neighbours    : provided neighbours in case faces is only a subset of all vertices
                          
     """
-    vertices=vertices.astype(np.float)
+    vertices=vertices.astype(np.float32)
     F=faces.astype(int)
     vertices = (vertices-(vertices.max(0)+vertices.min(0))/2)/max(vertices.max(0)-vertices.min(0))
     if not isinstance(rotate,list):
@@ -325,12 +331,14 @@ def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename
         if alpha_colour is not None:
             C = adjust_colours_alpha(C,np.mean(alpha_colour[F],axis=1))
         if pvals is not None:
-            C = adjust_colours_pvals(C,pvals,F,mask,mask_colour=mask_colour)
+            C = adjust_colours_pvals(C,pvals,F,mask,mask_colour=mask_colour, 
+                                     border_colour=border_colour)
         elif mask is not None:
             C = mask_colours(C,F,mask,mask_colour=mask_colour)
         if parcel is not None :
-            C = add_parcellation_colours(C,parcel,F,parcel_cmap,mask,mask_colour=mask_colour,
-                  filled=filled_parcels)
+            C = add_parcellation_colours(C,parcel,F,parcel_cmap,
+                     mask,mask_colour=mask_colour,
+                  filled=filled_parcels, neighbours=neighbours)
             
         #adjust intensity based on light source here
         C[:,0] *= intensity
