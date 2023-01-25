@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 
 setup(name='matplotlib_surface_plotting',
-      version='0.10',
+      version='0.12',
       packages=find_packages(),
       install_requires=['nibabel',
                         'matplotlib>=3.3.2'],
