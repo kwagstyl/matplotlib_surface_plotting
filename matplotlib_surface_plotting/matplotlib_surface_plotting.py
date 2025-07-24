@@ -220,13 +220,116 @@ def normalized(a, axis=-1, order=2):
     return a / np.expand_dims(l2, axis)
 
 
+def ras2coords(mri_img, ras=(0, 0, 0)):
+    return tuple(mri_img.affine[:3, :3].dot(ras) + mri_img.affine[:3, 3])
+
+
+def compute_plane_from_mri(mri_img, slice_i, slice_axis):
+    shape = mri_img.shape
+    if slice_axis == 0:
+        coord = slice_i
+        v0 = ras2coords(mri_img, (coord, 0, 0))
+        v1 = ras2coords(mri_img, (coord, shape[1], 0))
+        v2 = ras2coords(mri_img, (coord, 0, shape[2]))
+        v3 = ras2coords(mri_img, (coord, shape[1], shape[2]))
+    elif slice_axis == 1:
+        coord = slice_i
+        v0 = ras2coords(mri_img, (0, coord, 0))
+        v1 = ras2coords(mri_img, (shape[0], coord, 0))
+        v2 = ras2coords(mri_img, (0, coord, shape[2]))
+        v3 = ras2coords(mri_img, (shape[0], coord, shape[2]))
+    else:
+        coord = slice_i
+        v0 = ras2coords(mri_img, (0, 0, coord))
+        v1 = ras2coords(mri_img, (shape[0], 0, coord))
+        v2 = ras2coords(mri_img, (0, shape[1], coord))
+        v3 = ras2coords(mri_img, (shape[0], shape[1], coord))
+    return np.array([v0, v1, v2, v3]), np.array([[0,1,2],[1,3,2]])
+
+
+def get_plane_intersections(mesh_vertices, mesh_faces, plane_coords, plane_faces):
+    """
+    Categorize mesh faces as behind, intersecting, or in front of a plane defined by its vertices and faces.
+
+    Parameters:
+        mesh_vertices (np.ndarray): Array of shape (N, 3).
+        mesh_faces (np.ndarray): Array of shape (M, 3), indices into mesh_vertices.
+        plane_coords (np.ndarray): Array of shape (P, 3) with plane vertices.
+        plane_faces (np.ndarray): Array of shape (Q, 3) with indices into plane_coords defining plane triangles.
+
+    Returns:
+        behind_faces (List[int]): Indices of faces completely behind the plane.
+        intersected_faces (List[int]): Indices of faces intersecting the plane.
+        in_front_faces (List[int]): Indices of faces completely in front of the plane.
+    """
+    # Compute plane normal using the first triangle of the plane
+    idx0, idx1, idx2 = plane_faces[0]
+    v0 = plane_coords[idx0]
+    v1 = plane_coords[idx1]
+    v2 = plane_coords[idx2]
+    # Edge vectors
+    e1 = v1 - v0
+    e2 = v2 - v0
+    plane_normal = np.cross(e1, e2)
+    plane_normal = plane_normal / np.linalg.norm(plane_normal)
+    plane_point = v0  # any point on the plane
+
+    behind_faces = np.zeros(len(mesh_faces), dtype=bool)
+    intersected_faces = np.zeros(len(mesh_faces), dtype=bool)
+    in_front_faces = np.zeros(len(mesh_faces), dtype=bool)
+
+    for i, face in enumerate(mesh_faces):
+        verts = mesh_vertices[face]
+        
+        signed_dists = np.dot(verts - plane_point, plane_normal)
+
+        if np.all(signed_dists < 0):
+            behind_faces[i] = True
+        elif np.all(signed_dists > 0):
+            in_front_faces[i] = True
+        else:
+            intersected_faces[i] = True
+
+    return behind_faces, intersected_faces, in_front_faces
+
+def bounds_from_mesh(axis, coord, mesh_vertices):
+    min_vals = mesh_vertices.min(axis=0)
+    max_vals = mesh_vertices.max(axis=0)
+    #border is 10% of the mesh size
+    border = 0.1 * (max_vals - min_vals)
+    min_vals -= border
+    max_vals += border
+    if axis == 0:
+        return np.array([
+            [coord, min_vals[1], min_vals[2]],
+            [coord, max_vals[1], min_vals[2]],
+            [coord, min_vals[1], max_vals[2]],
+            [coord, max_vals[1], max_vals[2]]
+        ]), np.array([[0,1,2],[1,3,2]])
+    elif axis == 1:
+        return np.array([
+            [min_vals[0], coord, min_vals[2]],
+            [max_vals[0], coord, min_vals[2]],
+            [min_vals[0], coord, max_vals[2]],
+            [max_vals[0], coord, max_vals[2]]
+        ]),np.array([[0,1,2],[1,3,2]])
+    else:  # axis == 'z'
+        return np.array([
+            [min_vals[0], min_vals[1], coord],
+            [max_vals[0], min_vals[1], coord],
+            [min_vals[0], max_vals[1], coord],
+            [max_vals[0], max_vals[1], coord]
+        ]),np.array([[0,1,2],[1,3,2]])
+
+
 def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename='plot.png', label=False,
              vmax=None, vmin=None, x_rotate=270, pvals=None, colorbar=True, cmap_label='value',
              title=None, mask=None, base_size=6, arrows=None,arrow_subset=None,arrow_size=0.5,
              arrow_colours = None,arrow_head=0.05,arrow_width=0.001,
              mask_colour=None,transparency=1,show_back=False,border_colour = np.array([1,0,0,1]),
              alpha_colour = None,flat_map=False, z_rotate=0,neighbours=None,
-             parcel=None, parcel_cmap=None,filled_parcels=False,return_ax=False):
+             parcel=None, parcel_cmap=None,filled_parcels=False,return_ax=False,
+             plane=None):
     """ This function plot mesh surface with a given overlay. 
         Features available : display in flat surface, display parcellation on top, display gradients arrows on top
 
@@ -285,11 +388,24 @@ def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename
                        dic containing labels and colors associated for the parcellation
         filled_parcels: fill the parcel colours
         neighbours    : provided neighbours in case faces is only a subset of all vertices
-                         
+        plane        : dictionary, optional 
+                      {'mri_img': img, 'slice_i': 30, 'slice_axis': 1,
+                      'plane_colour': np.array([1,1,1,1]),
+                      'plane_alpha': 0.5}
+            
     """
+    default_plane = {'mri_img': None, 'slice_i': 100, 'slice_axis': 1,
+                 'plane_colour':np.array([.5,.5,.5,1]),
+                 'plane_alpha':0.8,
+                 'intersected_colour':np.array([0,0,0,1])}
+    if plane is not None:
+        if not isinstance(plane,dict):
+            raise ValueError('Plane should be a dictionary with keys: mri_img, slice_i, slice_axis, plane_colour, plane_alpha')
+        for key in default_plane.keys():
+            if key not in plane:
+                plane[key] = default_plane[key]
     vertices=vertices.astype(np.float32)
     F=faces.astype(int)
-    vertices = (vertices-(vertices.max(0)+vertices.min(0))/2)/max(vertices.max(0)-vertices.min(0))
     if not isinstance(rotate,list):
         rotate=[rotate]
     if not isinstance(overlay,list):
@@ -303,10 +419,34 @@ def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename
         z_rotate=90
         rotate=[90]
         intensity = np.ones(len(F))
+        if plane is not None:
+            print('Plane is not supported for flat maps, ignoring plane.')
     else:
         #change light source if z is rotate
         light = np.array([0,0,1,1]) @ yrotate(z_rotate)
         intensity=shading_intensity(vertices, F, light=light[:3],shading=0.7)
+        if plane is not None:
+            if plane['mri_img'] is None:
+                plane_coords, plane_faces = bounds_from_mesh(plane['slice_axis'], plane['slice_i'], vertices)
+            else:
+                plane_coords, plane_faces = compute_plane_from_mri(plane['mri_img'], plane['slice_i'], plane['slice_axis'])
+            behind_faces, intersected_faces, in_front_faces = get_plane_intersections(vertices, F, plane_coords, plane_faces)
+   
+            plane_intensity = shading_intensity(plane_coords, plane_faces, light=light[:3],shading=0.7)
+            plane_colours = np.ones((len(plane_faces), 4))
+            plane_colours[:,:3] = plane['plane_colour'][:3]
+            #intensity
+            #plane_colours[:,0] *= plane_intensity
+            #plane_colours[:,1] *= plane_intensity
+            #plane_colours[:,2] *= plane_intensity
+            #alpha
+            plane_colours[:,3] = plane['plane_alpha']
+    
+    if plane is not None:
+        vertices = (vertices-(plane_coords.max(0)+plane_coords.min(0))/2)/max(plane_coords.max(0)-plane_coords.min(0))
+        plane_coords = (plane_coords-(plane_coords.max(0)+plane_coords.min(0))/2)/max(plane_coords.max(0)-plane_coords.min(0))
+    else:
+        vertices = (vertices-(vertices.max(0)+vertices.min(0))/2)/max(vertices.max(0)-vertices.min(0))
      #make figure dependent on rotations
     
     fig = plt.figure(figsize=(base_size*len(rotate)+colorbar*(base_size-2),
@@ -339,6 +479,8 @@ def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename
             C = add_parcellation_colours(C,parcel,F,parcel_cmap,
                      mask,mask_colour=mask_colour,
                   filled=filled_parcels, neighbours=neighbours)
+        if plane is not None:
+            C[intersected_faces,:] = plane['intersected_colour']
             
         #adjust intensity based on light source here
         C[:,0] *= intensity
@@ -346,12 +488,18 @@ def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename
         C[:,2] *= intensity
         
         collection = PolyCollection([], closed=True, linewidth=0,antialiased=False, facecolor=C, cmap=cmap)
+            
         for i,view in enumerate(rotate):
             MVP = perspective(25,1,1,100)  @ translate(0,0,-3) @ yrotate(view) @ zrotate(z_rotate)  @ xrotate(x_rotate) @ zrotate(270*flat_map)
             #translate coordinates based on viewing position
             V = np.c_[vertices, np.ones(len(vertices))]  @ MVP.T
-            
             V /= V[:,3].reshape(-1,1)
+            if plane is not None:
+                #transform plane coordinates
+                P = np.c_[plane_coords, np.ones(len(plane_coords))] @ MVP.T
+                P /= P[:,3].reshape(-1,1)
+                
+
             center = np.array([0, 0, 0, 1]) @ MVP.T;
             center /= center[3];
             # add vertex positions to A_dir before transforming them
@@ -371,7 +519,12 @@ def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename
                # A_dir *= 0.1;
 
             V = V[F]
-            
+            if plane is not None:
+                #transform plane coordinates
+                plane_faces=np.array([[0,1,3,2]])
+                P = P[plane_faces]
+                PT = P[:,:,:2]
+               
         #triangle coordinates
             T =  V[:,:,:2]
         #get Z values for ordering triangle plotting
@@ -382,15 +535,57 @@ def plot_surf(vertices, faces,overlay, rotate=[90,270], cmap='viridis', filename
                 T=T[front]
                 s_C = C[front]
                 Z = Z[front]
+                if plane is not None:
+                    behind_faces_f = behind_faces[front]
+                    intersected_faces_f = intersected_faces[front]
+                    in_front_faces_f = in_front_faces[front]
             else:
                 s_C = C
             I = np.argsort(Z)
-            T, s_C = T[I,:], s_C[I,:]
-            ax = fig.add_subplot(len(overlays),len(rotate)+1,2*k+i+1, xlim=[-.98,+.98], ylim=[-.98,+.98],aspect=1, frameon=False,
-             xticks=[], yticks=[])
-            collection = PolyCollection(T, closed=True, linewidth=0,antialiased=False, facecolor=s_C, cmap=cmap)
-            collection.set_alpha(transparency)
-            ax.add_collection(collection)
+            #sort triangles and colours
+            if plane is not None:
+                if sum(intersected_faces_f) > 0:
+                    #we may need some logic to figure out behind in front depending on view.
+                    #reorder I. Behind first, then intersected, then plane then in front, but preserve order internally
+                    if np.median(Z[behind_faces_f]) > np.median(Z[in_front_faces_f]):
+                        #if behind faces are in front of in front faces, then we need to swap them
+                        behind_faces_f, intersected_faces_f, in_front_faces_f = \
+                            in_front_faces_f, intersected_faces_f, behind_faces_f
+                    behind_I = np.argsort(Z[behind_faces_f])
+                    intersected_I = np.argsort(Z[intersected_faces_f])
+                    in_front_I = np.argsort(Z[in_front_faces_f])
+                    ax = fig.add_subplot(len(overlays),len(rotate)+1,2*k+i+1, xlim=[-.98,+.98], ylim=[-.98,+.98],aspect=1, frameon=False,
+                xticks=[], yticks=[])
+                    collection = PolyCollection(T[behind_faces_f][behind_I,:], closed=True, linewidth=0,
+                                                antialiased=False, 
+                                                facecolor=s_C[behind_faces_f][behind_I,:], cmap=cmap)
+                    collection.set_alpha(transparency)
+                    ax.add_collection(collection)
+                    
+                    collection = PolyCollection(T[intersected_faces_f][intersected_I,:], closed=True, linewidth=0,
+                                                antialiased=False, 
+                                                facecolor=s_C[intersected_faces_f][intersected_I,:], cmap=cmap)
+                    collection.set_alpha(transparency)
+                    ax.add_collection(collection)
+                    
+                    collection = PolyCollection(PT, closed=True, linewidth=0,
+                                                antialiased=True, 
+                                                facecolor=plane_colours, cmap=cmap)
+                    collection.set_alpha(plane_colours[:,3].mean())
+                    ax.add_collection(collection)
+                    collection = PolyCollection(T[in_front_faces_f][in_front_I,:], closed=True, linewidth=0,
+                                                antialiased=False, 
+                                                facecolor=s_C[in_front_faces_f][in_front_I,:], cmap=cmap)
+                    collection.set_alpha(transparency)
+                    ax.add_collection(collection)
+
+            else:        
+                T, s_C = T[I,:], s_C[I,:]
+                ax = fig.add_subplot(len(overlays),len(rotate)+1,2*k+i+1, xlim=[-.98,+.98], ylim=[-.98,+.98],aspect=1, frameon=False,
+                xticks=[], yticks=[])
+                collection = PolyCollection(T, closed=True, linewidth=0,antialiased=False, facecolor=s_C, cmap=cmap)
+                collection.set_alpha(transparency)
+                ax.add_collection(collection)
             #add arrows to image
             if arrows is not None:
                 front_arrows = F[front].ravel()
