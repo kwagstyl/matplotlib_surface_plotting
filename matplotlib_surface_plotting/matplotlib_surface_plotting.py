@@ -237,7 +237,8 @@ def _render_with_plane(ax, triangles: np.ndarray, colours: np.ndarray,
                 indices = np.argsort(depths[mask])
                 collection = PolyCollection(
                     triangles[mask][indices], closed=True, linewidth=0,
-                    antialiased=False, facecolor=colours[mask][indices], cmap=cmap)
+                    antialiased=False, edgecolors='none', 
+                    facecolor=colours[mask][indices], cmap=cmap)
                 collection.set_alpha(transparency)
                 ax.add_collection(collection)
         
@@ -245,8 +246,8 @@ def _render_with_plane(ax, triangles: np.ndarray, colours: np.ndarray,
         plane_faces = np.array([[0, 1, 3, 2]])
         PT = plane_coords[plane_faces][:, :, :2]
         collection = PolyCollection(
-            PT, closed=True, linewidth=0, antialiased=True,
-            facecolor=plane_colours, cmap=cmap)
+            PT, closed=True, linewidth=0, antialiased=False,
+            edgecolors='none', facecolor=plane_colours, cmap=cmap)
         collection.set_alpha(plane_colours[:, 3].mean())
         ax.add_collection(collection)
         
@@ -256,7 +257,8 @@ def _render_with_plane(ax, triangles: np.ndarray, colours: np.ndarray,
             indices = np.argsort(depths[mask])
             collection = PolyCollection(
                 triangles[mask][indices], closed=True, linewidth=0,
-                antialiased=False, facecolor=colours[mask][indices], cmap=cmap)
+                antialiased=False, edgecolors='none',
+                facecolor=colours[mask][indices], cmap=cmap)
             collection.set_alpha(transparency)
             ax.add_collection(collection)
     
