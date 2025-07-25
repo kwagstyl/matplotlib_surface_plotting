@@ -5,10 +5,13 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 
 setup(name='matplotlib_surface_plotting',
-      version='0.12',
+      version='0.13',
       packages=find_packages(),
       install_requires=['nibabel',
                         'matplotlib>=3.3.2'],
+      extras_require={
+          'test': ['pytest', 'pytest-cov']
+      },
       package_dir={'matplotlib_surface_plotting':'matplotlib_surface_plotting'},
       url="https://github.com/kwagstyl/matplotlib_surface_plotting",
       description="Brain mesh plotting in matplotlib",
