@@ -21,6 +21,5 @@ This will create demo_plot.png using the provided demo files.
 
 ## Background
 
-Based on a matplotlib blogpost by Nicolas P. Rougier
-
 Contributors: M. Ripart, U. Popple, K. Wagstyl 
+Based on a matplotlib blogpost by Nicolas P. Rougier

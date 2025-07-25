@@ -1,7 +1,7 @@
 """Geometric calculations for surface plotting."""
 
 import numpy as np
-from typing import Tuple, List, Optional, Union
+from typing import Tuple, List, Optional, Union, Any
 
 
 def normalize_v3(arr: np.ndarray) -> np.ndarray:
@@ -156,12 +156,12 @@ def normalized(a: np.ndarray, axis: int = -1, order: int = 2) -> np.ndarray:
     return a / np.expand_dims(l2, axis)
 
 
-def ras2coords(mri_img, ras: Tuple[float, float, float] = (0, 0, 0)) -> Tuple:
+def ras2coords(mri_img: Any, ras: Tuple[float, float, float] = (0, 0, 0)) -> Tuple[float, float, float]:
     """Convert RAS coordinates to image coordinates."""
     return tuple(mri_img.affine[:3, :3].dot(ras) + mri_img.affine[:3, 3])
 
 
-def compute_plane_from_mri(mri_img, slice_i: int, slice_axis: int) -> Tuple[np.ndarray, np.ndarray]:
+def compute_plane_from_mri(mri_img: Any, slice_i: int, slice_axis: int) -> Tuple[np.ndarray, np.ndarray]:
     """Compute plane coordinates from MRI slice.
     
     Args:

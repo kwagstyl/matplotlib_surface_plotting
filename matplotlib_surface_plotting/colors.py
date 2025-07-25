@@ -4,6 +4,18 @@ import numpy as np
 from typing import Optional, Dict, Any
 from .geometry import get_neighbours_from_tris, get_ring_of_neighbours
 
+# Set random seed for reproducible results
+np.random.seed(42)
+
+
+def set_random_seed(seed: int = 42) -> None:
+    """Set the random seed for reproducible color generation.
+    
+    Args:
+        seed: Random seed value (default: 42)
+    """
+    np.random.seed(seed)
+
 
 def mask_colours(colours: np.ndarray, triangles: np.ndarray, 
                 mask: Optional[np.ndarray], 

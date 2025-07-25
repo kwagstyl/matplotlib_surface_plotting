@@ -12,7 +12,8 @@ from .geometry import (
 )
 from .colors import (
     mask_colours, adjust_colours_pvals, add_parcellation_colours,
-    adjust_colours_alpha, apply_intensity_shading, create_colormap_colours
+    adjust_colours_alpha, apply_intensity_shading, create_colormap_colours,
+    set_random_seed
 )
 
 
@@ -126,6 +127,24 @@ def _process_overlay_colours(overlay: np.ndarray, faces: np.ndarray, cmap: str,
         colours[plane_intersections['intersected'], :] = plane_config['intersected_colour']
     
     return colours, vmin_used, vmax_used
+
+
+def _transform_arrows(vertices: np.ndarray, faces: np.ndarray, 
+                     arrows: np.ndarray, arrow_size: float, mvp: np.ndarray) -> Tuple:
+    """Transform arrow positions and directions."""
+    # Calculate arrow base positions (slightly above surface)
+    vertex_normal_orig = vertex_normals(vertices, faces)
+    A_base = np.c_[vertices + vertex_normal_orig * 0.01, np.ones(len(vertices))] @ mvp.T
+    A_base /= A_base[:, 3].reshape(-1, 1)
+    
+    # Calculate arrow directions
+    A_dir = np.copy(arrows)
+    max_arrow = np.max(np.linalg.norm(arrows, axis=1))
+    A_dir = arrow_size * A_dir / max_arrow
+    A_dir = np.c_[A_dir, np.ones(len(A_dir))] @ mvp.T  
+    A_dir /= A_dir[:, 3].reshape(-1, 1)
+    
+    return A_base, A_dir
 
 
 def _render_view(vertices: np.ndarray, faces: np.ndarray, colours: np.ndarray,
@@ -256,24 +275,6 @@ def _render_simple(ax, triangles: np.ndarray, colours: np.ndarray,
     return collection
 
 
-def _transform_arrows(vertices: np.ndarray, faces: np.ndarray, 
-                     arrows: np.ndarray, arrow_size: float, mvp: np.ndarray) -> Tuple:
-    """Transform arrow positions and directions."""
-    # Calculate arrow base positions (slightly above surface)
-    vertex_normal_orig = vertex_normals(vertices, faces)
-    A_base = np.c_[vertices + vertex_normal_orig * 0.01, np.ones(len(vertices))] @ mvp.T
-    A_base /= A_base[:, 3].reshape(-1, 1)
-    
-    # Calculate arrow directions
-    A_dir = np.copy(arrows)
-    max_arrow = np.max(np.linalg.norm(arrows, axis=1))
-    A_dir = arrow_size * A_dir / max_arrow
-    A_dir = np.c_[A_dir, np.ones(len(A_dir))] @ mvp.T  
-    A_dir /= A_dir[:, 3].reshape(-1, 1)
-    
-    return A_base, A_dir
-
-
 def _add_arrows(ax, A_base: np.ndarray, A_dir: np.ndarray, 
                arrow_subset: np.ndarray, faces: np.ndarray, front_mask: np.ndarray,
                center: np.ndarray, arrow_colours: Optional[List], 
@@ -308,7 +309,7 @@ def plot_surf(vertices, faces, overlay, rotate=[90, 270], cmap='viridis',
              show_back=False, border_colour=np.array([1, 0, 0, 1]),
              alpha_colour=None, flat_map=False, z_rotate=0, neighbours=None,
              parcel=None, parcel_cmap=None, filled_parcels=False, 
-             return_ax=False, plane=None):
+             return_ax=False, plane=None, random_seed=None):
     """Plot mesh surface with overlay data.
     
     This function provides comprehensive 3D surface visualization with support for:
@@ -395,6 +396,8 @@ def plot_surf(vertices, faces, overlay, rotate=[90, 270], cmap='viridis',
         - 'plane_colour': RGBA plane color
         - 'plane_alpha': Plane transparency
         - 'intersected_colour': Color for intersected faces
+    random_seed : int, optional
+        Random seed for reproducible color generation (default: None)
     
     Returns
     -------
@@ -405,6 +408,10 @@ def plot_surf(vertices, faces, overlay, rotate=[90, 270], cmap='viridis',
     mvp : ndarray
         Model-view-projection matrix (if return_ax=True)
     """
+    # Set random seed for reproducible results
+    if random_seed is not None:
+        set_random_seed(random_seed)
+    
     # Setup plane configuration
     default_plane = {
         'mri_img': None, 'slice_i': 100, 'slice_axis': 1,
