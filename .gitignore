@@ -2,3 +2,7 @@
 *.egg-info/
 dist/
 build/
+*.pyc
+*.pyo
+plot.png
+.pytest_cache/
